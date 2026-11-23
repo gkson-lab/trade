@@ -223,6 +223,7 @@ dialog { overflow-x: hidden; }
 table { border-collapse: collapse; width: 100%; font-size: 12px; }
 th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
 th:first-child, td:first-child { text-align: left; }
+.tbl-wrap.wrap-last td:last-child { white-space: normal; min-width: 240px; text-align: left; }
 th { color: var(--muted); font-weight: 500; background: var(--card); position: sticky; top: 0; }
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
 .kpi { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 10px 12px; background: var(--card); }

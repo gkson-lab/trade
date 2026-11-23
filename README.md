@@ -41,6 +41,37 @@ Every bot starts each generation with $100,000 by default. Change it in **New ru
 - borrow fees on shorts
 - margin calls
 
+### Genetics and family trees
+
+Every bot carries 7 Mendelian traits: two alleles each, one inherited from each parent, with dominant, recessive and codominant expression. The traits change how it trades:
+
+- Aggressive or Cautious
+- Scalper or Swing trader
+- Newshound or Skeptic
+- Herd follower, Mixed or Independent
+- Big caps, Any size or Small caps
+- Short seller (only `rr`)
+- Trailing or Fixed stops
+
+Founders each start a **house**, and children take the house of their better-ranked parent. Every bot records its parents, grandparents, children, lineage depth and inbreeding coefficient (Wright's F). Open a bot's panel to see its family and genotype; the **Family Tree** and **Pedigree** tables export all of it. Details are in [docs/DATASET.md](docs/DATASET.md#genetics-in-brief).
+
+### Breeding rules
+
+Pick one in **New run → Who breeds with whom** (`--breeding` on the CLI). Each rule keeps the 20 → 10 → 20 schedule.
+
+| Rule | Pairs |
+|---|---|
+| Ranked neighbours (default) | 1st with 2nd, 3rd with 4th ... among the breeders |
+| Winners with winners, losers with losers | Half the pairs from the top of the table, half from the bottom. Losers' children join the next generation, but losers don't survive themselves |
+| Winners with losers | 1st with last, 2nd with second-to-last ... |
+| Random mating | Breeders pair at random |
+| Tournament | Each parent is the best of 3 random bots from the whole generation |
+| Rank roulette | Parents drawn from everyone, better ranks more often |
+| Avoid relatives | Each breeder picks the best partner it is least related to |
+| Keep it in the family | Each breeder picks its closest relative, preferring the same house |
+
+**Mutation** (Low / Normal / High / Wild, `--mutation`) scales how far children drift from their parents.
+
 ### Breeding schedule
 
 | Generation | Bots (×1) | How |
@@ -97,13 +128,32 @@ On phones, a bottom tab bar switches between panels.
 
 At the end of a run, the report shows run-wide averages (return, P/L, win rate, Sharpe, drawdown), a per-generation chart and table, and the top bot runs. It also offers downloads.
 
+## Training a model
+
+Every run writes model-ready data: inputs are `x_*` columns, targets are `y_*` columns. There are three datasets:
+
+- **Market samples:** about 150+ stocks a day, ~50 inputs, with 1/5/10-day forward returns.
+- **Round trips:** every bot trade, with the stock's inputs at entry and the bot's genes, labeled win/loss and return.
+- **Bot generations:** genes and traits labeled with performance.
+
+To get them, use **Data → Training data (.zip)** in the browser; the CLI writes them into every generation folder. Stack any number of runs and train:
+
+```bash
+pip install pandas scikit-learn
+python3 tools/train_model.py out/run-1-x1 out/run-2-x1 out/run-3-x1                 # stock vs SIM 500 over 5 days
+python3 tools/train_model.py out/run-* --task trips --save trips-model.joblib       # will this bot's trade win?
+python3 tools/train_model.py out/run-* --task bots                                  # which genes and traits pay?
+```
+
+The test set is always the latest 20% of dates. Every column is documented in [docs/DATASET.md](docs/DATASET.md).
+
 ## Data
 
 Open **Data** at any time, even mid-run, to see the report and export. The exports are:
 
 | Export | What's in it |
 |---|---|
-| Master workbook (.xlsx) | All 15 tables below, with every generation stacked and a `gen` column, plus one `Gen N` sheet per generation |
+| Master workbook (.xlsx) | All 18 tables below, with every generation stacked and a `gen` column, plus one `Gen N` sheet per generation |
 | Generation CSVs (.zip) | `gen-0001/`, `gen-0002/` ... with that generation's bots, trades, round trips, bot daily, intraday equity, positions, market, sectors, news and genetics, plus run-level CSVs |
 | Every bot (.zip) | `bots/<name>/` for every bot: profile (with genome), per-generation results, daily ledger, round trips, trades, intraday equity, positions, sector P/L, symbol P/L |
 | Bot ledger workbook (.xlsx) | An index of every bot, then one daily-ledger sheet per bot |
@@ -128,6 +178,9 @@ Sheets that would pass Excel's row limit continue on a `(2)` sheet.
 | Market Daily | SIM 500 OHLC, SIM VIX, regime, fed funds, CPI, unemployment, GDP, advancers/decliners, up/down volume, new highs/lows, % above the 20-day average, dollar volume, halts |
 | Sector Daily | Daily return and level of all 12 sector indices |
 | News | Every headline with impact, sentiment, VIX at the time, and EPS actual/estimate/surprise for earnings |
+| Market Samples | Labeled training rows: a stock's inputs at the close and its 1/5/10-day forward returns |
+| Family Tree | Every bot ever born: house, parents, grandparents, genotype, traits, inbreeding, children, lifetime return |
+| Pedigree | Parent → child edges |
 | Symbols | All 6,138 symbols: price and return since start (split-adjusted), market cap, EPS, P/E, dividend yield and amount paid, short interest, beta, volatility, RSI, ATR, 6-month range, news/earnings/split counts, bot round trips and P/L |
 
 **Endless runs** keep every summary table in full. Trade-level tables keep the newest rows up to a memory budget (New run → *Trade-level rows kept in memory*); past that, the oldest generations' trade-level rows are dropped from memory, and the exports say which ones. The CLI writes every generation's CSVs to disk as it goes, so nothing is lost there.
@@ -147,6 +200,8 @@ js/updates.js                GitHub update checker (in the page)
 cli.js                       headless runner (endless mode, writes each generation to disk)
 tools/combine.js             merge generation CSVs / ZIPs into one workbook
 tools/check-updates.js       update checker for a local clone
+tools/train_model.py         train one model on any number of runs (pandas + scikit-learn)
+docs/DATASET.md              every training column explained
 vendor/xlsx.full.min.js      SheetJS 0.18.5 (Apache-2.0)
 ```
 

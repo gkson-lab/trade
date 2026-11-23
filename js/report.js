@@ -23,6 +23,7 @@
       ["Generations", rep.generations + (rep.forever ? " (endless run)" : "")], ["Trading days per generation", c.daysPerGen],
       ["Trading days simulated", rep.tradingDays], ["Simulated dates", rep.startDate + " to " + rep.endDate],
       ["Seed", c.seed], ["Fitness", c.fitness === "risk" ? "Return - 0.5 x max drawdown" : "Total return"],
+      ["Breeding rule", sim.ruleName], ["Mutation strength", c.mutation + "x"], ["Training samples per day", c.samplesPerDay],
       ["Symbols", sim.market.n], ["Unique bots", rep.uniqueBots], ["Bot-generation runs", rep.botRuns],
       ["Average return (all runs)", rep.avgReturn], ["Median return (all runs)", rep.medianReturn],
       ["Average P/L $ (all runs)", r2(rep.avgPnl)], ["Average Sharpe", r2(rep.avgSharpe)], ["Average Sortino", r2(rep.avgSortino)],
@@ -58,7 +59,10 @@
       ["Market Daily", L.market],
       ["Sector Daily", L.sectors],
       ["News", L.news],
-      ["Symbols", sim.symbols()]
+      ["Symbols", sim.symbols()],
+      ["Market Samples", L.mlSamples],
+      ["Family Tree", sim.familyTree()],
+      ["Pedigree", sim.pedigree()]
     ];
   }
 
@@ -121,6 +125,14 @@
     for (var i = 0; i < rows.length; i++) { var k = rows[i][key]; (g[k] = g[k] || []).push(rows[i]); }
     return g;
   }
+
+  /* Training-ready files: inputs are x_* columns, targets are y_* columns. */
+  function trainingFiles(sim) {
+    return [["training/market-samples.csv", sim.log.mlSamples], ["training/round-trips.csv", sim.log.roundTrips],
+      ["training/bot-generations.csv", sim.log.bots], ["training/family-tree.csv", sim.familyTree()]]
+      .map(function (x) { return { path: x[0], text: toCSV(x[1]) }; });
+  }
+  function trainingZip(sim, XLSX, type) { return zip(XLSX, trainingFiles(sim), type); }
 
   /* One big spreadsheet: every table across all generations, then one sheet per generation. */
   function master(sim, XLSX, opts) {
@@ -192,7 +204,8 @@
   }
 
   var GEN_TABLES = [["bots", "bots"], ["trades", "trades"], ["round-trips", "roundTrips"], ["bot-daily", "botDaily"], ["equity-intraday", "equityIntraday"],
-    ["positions", "positions"], ["market-daily", "market"], ["sector-daily", "sectors"], ["news", "news"], ["generation", "generations"], ["genetics", "genetics"]];
+    ["positions", "positions"], ["market-daily", "market"], ["sector-daily", "sectors"], ["news", "news"], ["generation", "generations"], ["genetics", "genetics"],
+    ["market-samples", "mlSamples"]];
 
   /* Rows of a single generation, keyed by CSV file name. */
   function generationFiles(rows) {
@@ -222,7 +235,8 @@
   function runLevelFiles(sim) {
     return [["summary.csv", summaryRows(sim.report(), sim)], ["generations.csv", sim.log.generations], ["genetics.csv", sim.log.genetics],
       ["bots.csv", sim.log.bots], ["bot-profiles.csv", sim.profiles()], ["genomes.csv", sim.log.genomes], ["symbols.csv", sim.symbols()],
-      ["market-daily.csv", sim.log.market], ["sector-daily.csv", sim.log.sectors]].map(function (x) { return { name: x[0], text: toCSV(x[1]) }; });
+      ["market-daily.csv", sim.log.market], ["sector-daily.csv", sim.log.sectors], ["family-tree.csv", sim.familyTree()],
+      ["pedigree.csv", sim.pedigree()]].map(function (x) { return { name: x[0], text: toCSV(x[1]) }; });
   }
 
   function botsZip(sim, XLSX, type) {
@@ -274,7 +288,7 @@
 
   T.Report = {
     sheets: sheets, toCSV: toCSV, master: master, workbook: master, botWorkbook: botWorkbook, botTables: botTables, perBotWorkbook: perBotWorkbook,
-    generationsZip: generationsZip, generationFiles: generationFiles, runLevelFiles: runLevelFiles, genDir: genDir, botsZip: botsZip,
+    generationsZip: generationsZip, trainingZip: trainingZip, trainingFiles: trainingFiles, generationFiles: generationFiles, runLevelFiles: runLevelFiles, genDir: genDir, botsZip: botsZip,
     combine: combine, unzip: unzip, summaryRows: summaryRows, appendSheet: appendSheet
   };
 })(window.T = window.T || {});

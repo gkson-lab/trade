@@ -288,7 +288,7 @@
       var pnl = b.equity - start, ret = pnl / start;
       sum += pnl; if (pnl > 0) up++;
       r.rk.textContent = k + 1; r.nm.textContent = b.name;
-      r.st.textContent = b.style + " · " + b.nPos + " pos" + (b.age ? " · survived " + b.age : "");
+      r.st.textContent = b.house + " · " + b.style + " · " + b.nPos + " pos" + (b.age ? " · survived " + b.age : "");
       r.btn.classList.toggle("new", b.gen === sim.gen && sim.gen > 1 && b.age === 0);
       r.plA.textContent = signed$(pnl); r.plP.textContent = pct(ret);
       r.pl.className = "pl num " + cls(pnl);
@@ -326,7 +326,23 @@
     dl.appendChild(btnB);
     dl.appendChild(el("span", "hint", "Data from finished generations. Best " + (s.bestSector || "n/a") + ", worst " + (s.worstSector || "n/a") + "."));
     body.appendChild(dl);
-    var c = b.cfg;
+    var c = b.cfg, all = S.sim.allBots;
+    body.appendChild(el("h3", null, "Family"));
+    var pa = all[b.parentIds[0]], pb = all[b.parentIds[1]], gps = [];
+    [pa, pb].forEach(function (p) { if (p) p.parentIds.forEach(function (q) { if (all[q]) gps.push(all[q].name + " (" + all[q].house + ")"); }); });
+    var kids = Object.keys(all).map(function (k) { return all[k]; }).filter(function (x) { return x.parentIds.indexOf(b.id) >= 0; });
+    body.appendChild(el("p", "hint", "House " + b.house + ", generation depth " + b.lineageDepth + ". " +
+      (pa ? "Parents: " + pa.name + " (" + pa.house + ", ranked " + b.breedMeta.rankA + ") and " + pb.name + " (" + pb.house + ", ranked " + b.breedMeta.rankB + "), paired by " +
+        ((T.BREEDING_RULES.filter(function (x) { return x.key === b.breedMeta.rule; })[0] || {}).name || b.breedMeta.rule) + ". " : "Founder of the house. ") +
+      (gps.length ? "Grandparents: " + gps.join(", ") + ". " : "") +
+      (kids.length ? "Children: " + kids.map(function (x) { return x.name; }).join(", ") + ". " : "No children yet. ") +
+      "Inbreeding coefficient " + b.inbreeding.toFixed(3) + (b.inbreeding >= 0.25 ? " (as close as full siblings' children)" : b.inbreeding >= 0.0625 ? " (as close as first cousins' children or closer)" : "") + "."));
+    body.appendChild(el("h3", null, "Traits"));
+    var traitTable = table(["Trait", "Genotype", "Shows as", "Effect"], T.TRAITS.map(function (t) {
+      return [t.name, b.genotype[t.key], b.traits[t.key], t.effect];
+    }), -1);
+    traitTable.classList.add("wrap-last");
+    body.appendChild(traitTable);
     body.appendChild(el("h3", null, "Genes"));
     body.appendChild(el("p", "hint", "Buys above score " + c.buyTh.toFixed(2) + ", exits below " + c.sellTh.toFixed(2) + ". Up to " + c.maxPos + " positions at " +
       (c.posSize * 100).toFixed(1) + "% of equity each. Stop " + (c.stopLoss * 100).toFixed(1) + "%" + (c.trail ? " (trailing)" : "") + ", target " +
@@ -454,6 +470,13 @@
         return ["G" + g.gen, g.bots, pct(g.avgReturn), pct(g.medianReturn), pct(g.bestReturn), pct(g.worstReturn), g.profitableBots, g.beatIndex,
           g.avgSharpe.toFixed(2), pct(g.avgAlphaAnn, 1), (g.avgWinRate * 100).toFixed(1) + "%", gen.diversity ? gen.diversity.toFixed(3) : "", pct(g.indexReturn), g.avgSimVix.toFixed(1), g.avgReturn];
       }), 2));
+    body.appendChild(el("h3", null, "Genetics" + (gensAll.length > 20 ? " (last 20 generations)" : "")));
+    body.appendChild(el("p", "hint", "Breeding rule: " + sim.ruleName + ". Allele columns show how common each dominant allele is (A aggressive, Q scalper, N newshound, H herding, B big caps, R long only, T trailing stops)."));
+    body.appendChild(table(["Gen", "Inbreeding", "Houses", "Top house", "A", "Q", "N", "H", "B", "R", "T", "Short sellers"],
+      sim.log.genetics.slice(-20).reverse().map(function (g) {
+        var f = function (a) { return Math.round(g["allele_" + a] * 100) + "%"; };
+        return ["G" + g.gen, g.avgInbreeding.toFixed(3), g.housesAlive, g.topHouse, f("A"), f("Q"), f("N"), f("H"), f("B"), f("R"), f("T"), Math.round(g.shortersPct * 100) + "%"];
+      }), -1));
     body.appendChild(el("h3", null, "Top 10 bot runs"));
     var top = sim.log.bots.slice().sort(function (a, b) { return b.returnPct - a.returnPct; }).slice(0, 10);
     body.appendChild(table(["Bot", "Gen", "Style", "Return", "P/L", "Max DD", "Sharpe", "Trades", "Win rate"],
@@ -545,6 +568,7 @@
       mult = S.cfg.mult; popText();
       $("inGens").value = S.cfg.generations || 6; $("inForever").checked = !!S.cfg.forever; $("inGens").disabled = !!S.cfg.forever;
       $("inBudget").value = String(S.cfg.detailBudget || 1500000); $("inDays").value = S.cfg.daysPerGen; $("inCash").value = S.cfg.startCash || 100000; $("inSeed").value = S.cfg.seed; $("inFit").value = S.cfg.fitness;
+      $("inBreed").value = S.cfg.breeding || "ranked"; $("inMut").value = String(S.cfg.mutation || 1); breedHint();
       $("newErr").hidden = true;
       $("dlgNew").showModal();
     });
@@ -552,6 +576,10 @@
     $("popHalf").addEventListener("click", function () { if (mult > 1) mult /= 2; popText(); });
     $("btnCancelNew").addEventListener("click", function () { $("dlgNew").close(); });
     $("inForever").addEventListener("change", function () { $("inGens").disabled = this.checked; });
+    T.BREEDING_RULES.forEach(function (r) { var o = el("option", null, r.name); o.value = r.key; $("inBreed").appendChild(o); });
+    function breedHint() { var r = T.BREEDING_RULES.filter(function (x) { return x.key === $("inBreed").value; })[0]; $("breedHint").textContent = r ? r.desc : ""; }
+    $("inBreed").addEventListener("change", breedHint);
+    breedHint();
     $("formNew").addEventListener("submit", function (e) {
       var forever = $("inForever").checked;
       var g = forever ? 0 : +$("inGens").value, d = +$("inDays").value, s = +$("inSeed").value, cash = +$("inCash").value, err = $("newErr");
@@ -559,12 +587,15 @@
         !(s >= 1) ? "Seed must be a positive whole number." : !(cash >= 100 && cash <= 1e12) ? "Starting cash must be between $100 and $1,000,000,000,000." : "";
       if (bad) { e.preventDefault(); err.textContent = bad; err.hidden = false; return; }
       build({ mult: mult, generations: Math.round(g), forever: forever, daysPerGen: Math.round(d), seed: Math.round(s), fitness: $("inFit").value,
-        detailBudget: +$("inBudget").value, startCash: Math.round(cash * 100) / 100 });
+        detailBudget: +$("inBudget").value, startCash: Math.round(cash * 100) / 100, breeding: $("inBreed").value, mutation: +$("inMut").value });
     });
     $("btnCloseBot").addEventListener("click", function () { $("dlgBot").close(); });
     $("btnCloseReport").addEventListener("click", function () { $("dlgReport").close(); });
     $("btnXlsx").addEventListener("click", function () {
       if (needX()) busy(this, function () { saveBook(T.Report.master(S.sim, window.XLSX), runName() + "-all-generations.xlsx"); });
+    });
+    $("btnTrainZip").addEventListener("click", function () {
+      if (needX()) busy(this, function () { download(runName() + "-training.zip", new Blob([T.Report.trainingZip(S.sim, window.XLSX)], { type: "application/zip" })); });
     });
     $("btnGenZip").addEventListener("click", function () {
       if (needX()) busy(this, function () { download(runName() + "-generations.zip", new Blob([T.Report.generationsZip(S.sim, window.XLSX)], { type: "application/zip" })); });

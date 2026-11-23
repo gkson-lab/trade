@@ -176,6 +176,12 @@
       <div class="field"><label class="label" for="inSeed">Seed</label><input class="input" id="inSeed" type="number" min="1" max="2147483647" value="20270104" required></div>
       <div class="field"><label class="label" for="inFit">Breeding picks by</label>
         <select class="select full" id="inFit"><option value="return">Total return</option><option value="risk">Return minus half max drawdown</option></select></div>
+      <div class="field"><label class="label" for="inBreed">Who breeds with whom</label>
+        <select class="select full" id="inBreed" aria-describedby="breedHint"></select>
+        <span class="hint" id="breedHint"></span></div>
+      <div class="field"><label class="label" for="inMut">Mutation</label>
+        <select class="select full" id="inMut"><option value="0.5">Low (0.5x)</option><option value="1" selected>Normal</option><option value="2">High (2x)</option><option value="4">Wild (4x)</option></select>
+        <span class="hint">How much children's genes and alleles drift from their parents'.</span></div>
     </div>
     <div class="field"><label class="label" for="inBudget">Trade-level rows kept in memory</label>
       <select class="select full" id="inBudget">
@@ -223,10 +229,12 @@
       <h3 id="hExports">Export</h3>
       <p class="hint" id="exportNote"></p>
       <div class="export-grid">
-        <div class="export"><b>Master workbook</b><span class="hint">All 15 tables with every generation stacked, plus one sheet per generation.</span>
+        <div class="export"><b>Master workbook</b><span class="hint">All 18 tables with every generation stacked, plus one sheet per generation.</span>
           <button type="button" class="btn primary" id="btnXlsx">Download .xlsx</button></div>
         <div class="export"><b>Generation CSVs</b><span class="hint">A .zip with a gen-0001, gen-0002 ... folder of CSVs for each generation, plus run-level CSVs.</span>
           <button type="button" class="btn" id="btnGenZip">Download .zip</button></div>
+        <div class="export"><b>Training data</b><span class="hint">Model-ready CSVs: labeled market samples, labeled round trips, bot generations and the family tree. Inputs start with x_, targets with y_.</span>
+          <button type="button" class="btn" id="btnTrainZip">Download .zip</button></div>
         <div class="export"><b>Every bot, individually</b><span class="hint">A .zip with a folder per bot: profile, generations, daily ledger, round trips, trades, positions, sector and symbol P/L.</span>
           <button type="button" class="btn" id="btnBotZip">Download .zip</button></div>
         <div class="export"><b>Bot ledger workbook</b><span class="hint">An index of every bot plus one daily-ledger sheet per bot.</span>

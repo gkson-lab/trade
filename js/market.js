@@ -86,6 +86,7 @@
     this.newsCount = new Int32Array(n); this.earnCount = new Int32Array(n); this.splitCount = new Int32Array(n);
     this.divPaid = new Float64Array(n);
     this.divByOffset = {};
+    this.earnOff = new Uint8Array(n);
     this.symIndex = Object.create(null);
     this.earningsByOffset = {};
 
@@ -113,6 +114,7 @@
       this.jumpRate[i] = (0.6 + smallness * 0.5) / 252;      // jumps per day
       this.earningsBias[i] = 0.25 * rr.normal();
       var off = T.hashStr("e" + row[0]) % 63;
+      this.earnOff[i] = off;
       (this.earningsByOffset[off] = this.earningsByOffset[off] || []).push(i);
       var lossMaker = row[5] < 2000 && (T.hashStr("l" + row[0]) % 100) < 55;
       this.eps[i] = lossMaker ? -row[4] * (0.02 + 0.13 * rr.next()) : row[4] / (SECTOR_PE[row[3]] * Math.exp(0.35 * rr.normal()));
@@ -320,7 +322,16 @@
     return Math.round((100 * Math.sqrt(this.mVar * BPD * 252) * 1.12 + 2.5 + (this.regime >= 2 ? 4 : 0) + (this.regime === 3 ? 10 : 0)) * 100) / 100;
   };
 
+  /* True between the closing bell and the next open: prevClose has already rolled to today's close. */
+  Market.prototype.closed = function () { return this.bar === 0 && this.gBar > 0; };
+  Market.prototype.refClose = function (i) { return this.closed() ? this.dailyClose(i, 2) : this.prevClose[i]; };
+  /* Close k sessions before the current (or just-finished) session. */
+  Market.prototype.backClose = function (i, k) { return this.dailyClose(i, k + (this.closed() ? 1 : 0)); };
+  Market.prototype.indexRef = function () { return this.closed() ? this.idx.dC[(this.dayIdx - 2) % DAILY] : this.indexPrevClose; };
+  Market.prototype.sectorRet = function (s) { return this.closed() ? this.lastSectorRet[s] : this.sectorIdx[s] / this.sectorPrev[s] - 1; };
+
   Market.prototype.rsi = function (i) {
+    if (this.closed()) return this.rsiL[i] <= 0 ? 100 : 100 - 100 / (1 + this.rsiG[i] / this.rsiL[i]);
     var ch = this.price[i] - this.prevClose[i];
     var g = (this.rsiG[i] * 13 + Math.max(ch, 0)) / 14, l = (this.rsiL[i] * 13 + Math.max(-ch, 0)) / 14;
     return l <= 0 ? 100 : 100 - 100 / (1 + g / l);
@@ -603,20 +614,55 @@
   Market.prototype.indexChangePct = function () { return this.index / this.indexPrevClose - 1; };
 
   /* Feature vector for bot brains, cached per bar. All values roughly in [-3, 3]. */
+  var FEATURE_KEYS = ["shortMom", "dayMom", "weekMom", "meanRev", "news", "vol", "volSurge", "mktTrend", "sectorTrend", "beta", "size", "rsi", "vwap", "earnYield", "shortInt"];
+  T.FEATURE_KEYS = FEATURE_KEYS;
+
+  /* Model-ready snapshot of one stock right now: raw values plus the 15 normalized bot inputs (x_f_*).
+   * Only uses information available at this moment (no look-ahead). */
+  Market.prototype.snapshot = function (i) {
+    var p = this.price[i], D = DAILY, r4 = function (x) { return isFinite(x) ? Math.round(x * 1e6) / 1e6 : ""; };
+    var dc = function (self, back) { return self.backClose(i, back); }, cl = this.closed() ? 1 : 0;
+    var sum = 0, sum2 = 0;
+    for (var k = 1; k <= 20; k++) { var c = dc(this, k); sum += c; sum2 += c * c; }
+    var mean = sum / 20, sd = Math.sqrt(Math.max(sum2 / 20 - mean * mean, 1e-12));
+    var frac = cl ? 1 : Math.max(this.bar, 1) / BPD, br = this.lastBreadth || {};
+    var idx1 = this.index / this.indexRef() - 1;
+    var idx5 = this.index / this.idx.dC[(this.dayIdx - 5 - cl + D) % D] - 1;
+    var s = this.sector[i], range = this.hiRange[i] - this.loRange[i];
+    var o = {
+      x_price: r4(p), x_logMcap: r4(Math.log10(this.marketCap(i) + 1)), x_beta: r4(this.beta[i]), x_idioVol: r4(this.idioVol[i]),
+      x_realVol: r4(Math.sqrt(this.ewVar[i] * 252)), x_ret1d: r4(p / this.refClose(i) - 1),
+      x_ret5d: r4(p / dc(this, 5) - 1), x_ret20d: r4(p / dc(this, 20) - 1), x_z20: r4((p - mean) / sd),
+      x_rsi14: r4(this.rsi(i)), x_atrPct: r4(this.atrPct[i]), x_vwapDist: r4(p / this.vwap(i) - 1),
+      x_volSurge: r4(this.dVolume[i] / (this.avgVol[i] * frac + 1)), x_sentiment: r4(this.sentiment[i]),
+      x_daysToEarnings: (this.earnOff[i] - this.day % 63 + 63) % 63, x_divYield: r4(this.divYield[i]), x_shortInt: r4(this.shortInt[i]),
+      x_epsYield: r4(this.eps[i] / p), x_rangePos: r4(range > 0 ? (p - this.loRange[i]) / range : 0.5), x_spreadBps: r4(this.quote(i).spread * 1e4),
+      x_sp500: this.sp[i], x_sectorCode: s, x_exchangeCode: this.exch[i], x_halted: this.isHalted(i) ? 1 : 0,
+      x_vix: this.vix(), x_regimeCode: this.regime, x_idxRet1d: r4(idx1), x_idxRet5d: r4(idx5),
+      x_sectorRet1d: r4(this.sectorRet(s)), x_adRatio: br.decliners ? r4(br.advancers / br.decliners) : "",
+      x_pctAbove20d: br.above20d !== undefined ? r4(br.above20d / this.n) : "", x_fedFunds: this.news.macro.fed, x_cpi: r4(this.news.macro.cpi),
+      x_unemployment: r4(this.news.macro.unemp)
+    };
+    var base = this.featuresOf(i);
+    for (k = 0; k < FEATURE_KEYS.length; k++) o["x_f_" + FEATURE_KEYS[k]] = r4(this.features[base + k]);
+    return o;
+  };
+
   Market.prototype.featuresOf = function (i) {
     var F = this.NF, base = i * F, f = this.features;
     if (this.featureStamp[i] === this.gBar) return base;
     var p = this.price[i];
     var dvol = Math.sqrt(Math.max(this.ewVar[i], 1e-6));
     var r6 = Math.log(p / this.intraClose(i, 6));
-    var r1d = Math.log(p / this.prevClose[i]);
-    var r5 = Math.log(p / this.dailyClose(i, 5));
+    var cl = this.closed() ? 1 : 0;
+    var r1d = Math.log(p / this.refClose(i));
+    var r5 = Math.log(p / this.backClose(i, 5));
     var sum = 0, sum2 = 0;
-    for (var k = 1; k <= 20; k++) { var c = this.dailyClose(i, k); sum += c; sum2 += c * c; }
+    for (var k = 1; k <= 20; k++) { var c = this.backClose(i, k); sum += c; sum2 += c * c; }
     var mean = sum / 20, sd = Math.sqrt(Math.max(sum2 / 20 - mean * mean, 1e-9));
-    var frac = Math.max(this.bar, 1) / BPD;
+    var frac = cl ? 1 : Math.max(this.bar, 1) / BPD;
     var vsurge = this.dVolume[i] / (this.avgVol[i] * frac + 1);
-    var idx5 = Math.log(this.index / this.idx.dC[(this.dayIdx - 5) % DAILY]);
+    var idx5 = Math.log(this.index / this.idx.dC[(this.dayIdx - 5 - cl + DAILY) % DAILY]);
     var s = this.sector[i];
     f[base] = Math.tanh(r6 / (dvol * 0.4));
     f[base + 1] = Math.tanh(r1d / dvol);
@@ -626,7 +672,7 @@
     f[base + 5] = Math.tanh((dvol * Math.sqrt(252) - 0.35) * 2);
     f[base + 6] = Math.tanh(Math.log(vsurge + 0.05));
     f[base + 7] = Math.tanh(idx5 / 0.03);
-    f[base + 8] = Math.tanh(Math.log(this.sectorIdx[s] / this.sectorPrev[s]) / 0.012);
+    f[base + 8] = Math.tanh(Math.log(1 + this.sectorRet(s)) / 0.012);
     f[base + 9] = Math.tanh(this.beta[i] - 1);
     f[base + 10] = Math.tanh((Math.log10(this.mcap0[i] + 1) - 3.5) / 1.5);
     f[base + 11] = (this.rsi(i) - 50) / 25;

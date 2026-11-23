@@ -14,7 +14,7 @@ var fs = require("fs"), path = require("path"), vm = require("vm");
 var args = {};
 process.argv.slice(2).forEach(function (a, i, arr) { if (a.indexOf("--") === 0) args[a.slice(2)] = arr[i + 1] && arr[i + 1].indexOf("--") !== 0 ? arr[i + 1] : true; });
 if (args.help) {
-  console.log("usage: node cli.js [--mult 1] [--gens 6 | --forever] [--days 10] [--cash 100000] [--seed N] [--fitness return|risk] [--symbols N]\n" +
+  console.log("usage: node cli.js [--mult 1] [--gens 6 | --forever] [--days 10] [--cash 100000] [--breeding ranked|assortative|disassortative|random|tournament|roulette|outbreed|inbreed] [--mutation 1] [--samples 150] [--seed N] [--fitness return|risk] [--symbols N]\n" +
     "                   [--max-gens N] [--max-minutes M] [--budget ROWS] [--out out] [--no-master] [--no-combine] [--no-bots]");
   process.exit(0);
 }
@@ -26,11 +26,16 @@ var root = __dirname;
 });
 var XLSX = require(path.join(root, "vendor", "xlsx.full.min.js"));
 
+if (args.breeding && !T.BREEDING_RULES.some(function (r) { return r.key === args.breeding; })) {
+  console.error("Unknown --breeding " + args.breeding + ". Choose one of: " + T.BREEDING_RULES.map(function (r) { return r.key; }).join(", "));
+  process.exit(2);
+}
 var forever = !!args.forever || args.gens === "0";
 var sim = new T.Sim({
   mult: +(args.mult || 1), generations: forever ? 0 : +(args.gens || 6), daysPerGen: +(args.days || 10),
   seed: +(args.seed || 20270104), fitness: args.fitness || "return", maxSymbols: +(args.symbols || 0),
-  detailBudget: +(args.budget || 400000), startCash: +(args.cash || 100000)
+  detailBudget: +(args.budget || 400000), startCash: +(args.cash || 100000),
+  breeding: args.breeding || "ranked", mutation: +(args.mutation || 1), samplesPerDay: args.samples !== undefined ? +args.samples : 150
 });
 var outDir = path.join(args.out || "out", "run-" + sim.cfg.seed + "-x" + sim.cfg.mult);
 fs.mkdirSync(outDir, { recursive: true });
@@ -71,6 +76,10 @@ function finish() {
   console.log("Done in " + ((Date.now() - t0) / 1000).toFixed(1) + "s. " + rep.generations + " generations, avg return " + pct(rep.avgReturn) +
     ", avg win rate " + pct(rep.avgWinRate) + ", SIM 500 " + pct(rep.indexReturn));
   T.Report.runLevelFiles(sim).forEach(function (f) { fs.writeFileSync(path.join(outDir, f.name), f.text); });
+  if (sim.unfinishedSamples && sim.unfinishedSamples.length) {
+    // samples from the last 10 days: some forward labels are still blank because the run ended first
+    fs.writeFileSync(path.join(outDir, T.Report.genDir(rep.generations), "market-samples-partial.csv"), T.Report.toCSV(sim.unfinishedSamples));
+  }
   if (!args["no-master"]) {
     fs.writeFileSync(path.join(outDir, "trade-run.xlsx"), XLSX.write(T.Report.master(sim, XLSX), { type: "buffer", bookType: "xlsx", compression: true }));
     console.log("Master workbook: " + path.join(outDir, "trade-run.xlsx") + (rep.trimmedThrough ? " (trade detail for gens 1-" + rep.trimmedThrough + " is in the gen folders)" : ""));

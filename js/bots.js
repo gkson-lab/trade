@@ -59,6 +59,20 @@
     return imp;
   };
 
+  /* Apply trait phenotypes on top of the decoded continuous genes. */
+  function express(c, tr) {
+    if (tr.temper === "Aggressive") { c.posSize = Math.min(0.36, c.posSize * 1.3); c.stopLoss *= 1.25; }
+    else { c.posSize *= 0.75; c.cashReserve = Math.min(0.6, c.cashReserve + 0.1); }
+    if (tr.horizon === "Scalper") { c.interval = Math.max(1, Math.round(c.interval / 2)); c.maxHold = Math.min(c.maxHold, 3); }
+    else { c.maxHold = Math.min(30, Math.round(c.maxHold * 1.5) + 1); c.takeProfit *= 1.2; }
+    c.newsMult = tr.news === "Newshound" ? 2 : 0.5;
+    c.herdBias = tr.herd === "Herd follower" ? 0.15 : tr.herd === "Mixed" ? 0.075 : 0;
+    c.sizeBias = tr.size === "Big caps" ? 0.12 : tr.size === "Small caps" ? -0.12 : 0;
+    c.shortOn = tr.short === "Short seller";
+    c.trail = tr.trail === "Trailing stops";
+    return c;
+  }
+
   function decode(p) {
     return {
       buyTh: 0.05 + 0.8 * p[0],
@@ -76,17 +90,65 @@
     };
   }
 
+  /* Mendelian traits. Each bot carries two alleles per trait, one from each parent (founders get random ones).
+   * Uppercase = dominant allele. "dominant": one uppercase copy shows the dominant look.
+   * "codominant": 2, 1 or 0 uppercase copies each show differently. A recessive look needs two lowercase copies. */
+  var TRAITS = [
+    { key: "temper", name: "Temperament", a: "A", mode: "dominant", dom: "Aggressive", rec: "Cautious", pDom: 0.5,
+      effect: "Aggressive: 30% bigger positions, 25% wider stops. Cautious: 25% smaller positions, 10% more cash held back." },
+    { key: "horizon", name: "Horizon", a: "Q", mode: "dominant", dom: "Scalper", rec: "Swing trader", pDom: 0.45,
+      effect: "Scalper: decides twice as often, holds 3 days at most. Swing trader: holds 50% longer, 20% higher profit target." },
+    { key: "news", name: "News sense", a: "N", mode: "dominant", dom: "Newshound", rec: "Skeptic", pDom: 0.5,
+      effect: "Newshound: news sentiment counts double. Skeptic: counts half." },
+    { key: "herd", name: "Herding", a: "H", mode: "codominant", looks: ["Independent", "Mixed", "Herd follower"], pDom: 0.5,
+      effect: "Herd follower adds the market trend to every score (Mixed adds half)." },
+    { key: "size", name: "Size taste", a: "B", mode: "codominant", looks: ["Small caps", "Any size", "Big caps"], pDom: 0.5,
+      effect: "Big caps tilts scores toward large companies, Small caps toward small ones." },
+    { key: "short", name: "Short selling", a: "R", mode: "dominant", dom: "Long only", rec: "Short seller", pDom: 0.62,
+      effect: "Only bots with two recessive r alleles (rr) sell short." },
+    { key: "trail", name: "Stops", a: "T", mode: "dominant", dom: "Trailing stops", rec: "Fixed stops", pDom: 0.5,
+      effect: "Trailing stops follow the best price reached; fixed stops stay at the entry level." }
+  ];
+  var ALLELE_MUTATION = 0.02;
+
+  function randomGenotype(r) {
+    var g = {};
+    TRAITS.forEach(function (t) { g[t.key] = pair(r.next() < t.pDom, r.next() < t.pDom, t.a); });
+    return g;
+  }
+  function pair(d1, d2, a) { return (d1 ? a : a.toLowerCase()) + (d2 ? a : a.toLowerCase()); }
+  function sortPair(x) { return x[0] === x[0].toUpperCase() ? x : x[1] + x[0]; }
+  /* Child gets one random allele from each parent; each allele can mutate. */
+  function inheritGenotype(ga, gb, r, mut) {
+    var g = {};
+    TRAITS.forEach(function (t) {
+      var x = ga[t.key][r.next() < 0.5 ? 0 : 1], y = gb[t.key][r.next() < 0.5 ? 0 : 1];
+      if (r.next() < ALLELE_MUTATION * mut) x = x === t.a ? t.a.toLowerCase() : t.a;
+      if (r.next() < ALLELE_MUTATION * mut) y = y === t.a ? t.a.toLowerCase() : t.a;
+      g[t.key] = sortPair(x + y);
+    });
+    return g;
+  }
+  function phenotype(t, gt) {
+    var up = (gt[0] === t.a ? 1 : 0) + (gt[1] === t.a ? 1 : 0);
+    if (t.mode === "codominant") return t.looks[up];
+    return up > 0 ? t.dom : t.rec;
+  }
+  function phenotypes(g) { var o = {}; TRAITS.forEach(function (t) { o[t.key] = phenotype(t, g[t.key]); }); return o; }
+
   var NAME_A = ["Ash", "Brine", "Cobalt", "Dune", "Ember", "Flint", "Gale", "Harbor", "Iris", "Jade", "Kestrel", "Lumen", "Mako", "Nova",
     "Onyx", "Pike", "Quill", "Rook", "Slate", "Talon", "Umber", "Vale", "Wren", "Xeno", "Yarrow", "Zephyr"];
 
-  function Bot(id, gen, genome, parents, rng, startCash) {
+  function Bot(id, gen, genome, parents, rng, startCash, genotype) {
     this.id = id;
+    this.genotype = genotype || randomGenotype(rng);
+    this.traits = phenotypes(this.genotype);
     this.startCash = startCash > 0 ? startCash : START_CASH;
     this.gen = gen;            // generation this bot was born in
     this.genome = genome;
     this.parents = parents || [];
     this.name = NAME_A[id % NAME_A.length] + "-" + String(id).padStart(3, "0");
-    this.cfg = decode(genome.p);
+    this.cfg = express(decode(genome.p), this.traits);
     this.offset = rng.int(0, 11);
     this.style = styleOf(genome);
     this.age = 0;
@@ -123,13 +185,13 @@
   }
 
   Bot.prototype.score = function (m, i) {
-    var base = m.featuresOf(i), f = m.features, w = this.genome.w, out = w[NW - 1];
+    var base = m.featuresOf(i), f = m.features, w = this.genome.w, out = w[NW - 1], c = this.cfg, nm = c.newsMult;
     for (var h = 0; h < H; h++) {
-      var a = w[NF * H + h];
+      var a = w[NF * H + h] + f[base + 4] * (nm - 1) * w[4 * H + h];
       for (var k = 0; k < NF; k++) a += f[base + k] * w[k * H + h];
       out += Math.tanh(a) * w[NF * H + H + h];
     }
-    return Math.tanh(out);
+    return Math.tanh(out + c.herdBias * f[base + 7] + c.sizeBias * f[base + 10]);
   };
 
   Bot.prototype.markEquity = function (m) {
@@ -158,7 +220,7 @@
     this.roundTrips.push({ sym: sym, sector: sec, side: long ? "LONG" : "SHORT", qty: qty, entryDay: p.day, entryBar: p.bar, entryPx: p.avg,
       exitDay: m.day, exitBar: m.bar, exitPx: px, pnl: pnl, ret: ret, holdBars: m.gBar - p.gBar, mfe: mfe, mae: mae,
       entryScore: p.score, entryReason: p.why, exitReason: reason, regimeIn: p.regime, regimeOut: m.REGIMES[m.regime].name,
-      fees: p.fees, entryRsi: p.rsi });
+      fees: p.fees, entryRsi: p.rsi, snap: p.snap });
   };
 
   Bot.prototype.fill = function (m, i, qty, reason, score) {   // qty > 0 buy, < 0 sell
@@ -178,7 +240,7 @@
     var p = this.pos[i], realized = null;
     if (!p) {
       this.pos[i] = { q: qty, avg: px, day: m.day, bar: m.bar, gBar: m.gBar, peak: px, trough: px, score: score === undefined ? null : score,
-        why: reason, regime: m.REGIMES[m.regime].name, fees: fee, rsi: Math.round(m.rsi(i) * 10) / 10 };
+        why: reason, regime: m.REGIMES[m.regime].name, fees: fee, rsi: Math.round(m.rsi(i) * 10) / 10, snap: m.snapshot(i) };
       this.nPos++;
     } else if ((p.q > 0) === (qty > 0)) {
       p.avg = (p.avg * p.q + px * qty) / (p.q + qty); p.q += qty; p.fees += fee;
@@ -394,6 +456,8 @@
     };
   };
 
+  T.TRAITS = TRAITS;
+  T.genetics = { random: randomGenotype, inherit: inheritGenotype, phenotypes: phenotypes, phenotype: phenotype };
   T.Genome = Genome;
   T.Bot = Bot;
   T.decodeGenes = decode;
