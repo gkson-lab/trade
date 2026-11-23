@@ -6,13 +6,6 @@ There is also a headless CLI that writes the same data sheets.
 
 The market is fictional. The 6,138 symbols are real NASDAQ, NYSE and AMEX listings, and each starts from its real price, market cap, volume and sector. Every price after that is simulated.
 
-## On your phone
-
-**Easiest: the hosted link.** Open https://claude.ai/artifact/LXnD6DYBZJpWWAFite1hLW on your phone while signed in to claude.ai, in a browser or the Claude app. Downloads open your phone's save prompt (on iPhone, the share sheet: pick *Save to Files*). To make it feel like an app, add it to your home screen: in Safari, tap **Share → Add to Home Screen**; in Chrome on Android, tap **⋮ → Add to Home screen**.
-
-**Offline: one file.** [`dist/trade-box.html`](dist/trade-box.html) is the whole app in a single 1.5 MB file, with no server or internet needed after the first load of the fonts. On Android, download it from GitHub (open the file, then the **⋯ → Download** button), then open it from the *Files* app in Chrome. On iPhone, Safari won't run a local HTML file, so use the hosted link instead.
-
-Rebuild both after changing the code: `node tools/build_single.js` writes `dist/trade-box.html`; `node tools/build_single.js --artifact` writes the hosted-link version.
 
 ## Run it
 
