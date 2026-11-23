@@ -1,0 +1,10 @@
+{
+  "name": "Trade Box",
+  "short_name": "Trade Box",
+  "description": "Evolving AI trading bots on a simulated US stock market.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0f1419",
+  "theme_color": "#0f1419",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
