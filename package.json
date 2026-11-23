@@ -1,0 +1,14 @@
+{
+  "name": "trade-box",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Evolving AI trading bots on a simulated US stock market. Static web app plus a headless CLI.",
+  "scripts": {
+    "test": "node tests/run.js",
+    "market-stats": "node tests/market_stats.js 250",
+    "run": "node cli.js",
+    "serve": "python3 -m http.server 8080",
+    "symbols": "python3 tools/build_symbols.py"
+  },
+  "license": "MIT"
+}

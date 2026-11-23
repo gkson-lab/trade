@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Trade Box</title>
+<meta name="description" content="Evolving AI trading bots on a simulated US stock market.">
+<meta name="theme-color" content="#0f1419">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="wordmark">Trade Box</span><span class="tag">Simulated market</span></div>
+  <div class="ticker" aria-label="SIM 500 index">
+    <span class="ticker-name">SIM 500</span>
+    <span id="idxVal" class="num strong">5,000.00</span>
+    <span id="idxChg" class="num chg">0.00%</span>
+  </div>
+  <div class="regime"><span class="muted">Regime</span> <span id="regime" class="badge">Neutral</span></div>
+  <div class="clock"><span id="clockDate" class="num">2027-01-04</span> <span id="clockTime" class="num muted">9:30 AM</span></div>
+  <div class="genbox">
+    <span class="muted">Gen</span> <span id="genNum" class="num strong">1</span><span class="muted">/</span><span id="genTotal" class="num">6</span>
+    <span class="muted">Day</span> <span id="genDay" class="num">1</span><span class="muted">/</span><span id="genDays" class="num">10</span>
+    <div class="progress" aria-hidden="true"><div id="genProgress"></div></div>
+  </div>
+  <div class="controls">
+    <button id="btnPlay" class="btn primary" type="button" aria-label="Start simulation">Start</button>
+    <label class="sr-only" for="speed">Speed</label>
+    <select id="speed" class="select" aria-label="Speed">
+      <option value="1">1 bar/s</option>
+      <option value="4">4 bars/s</option>
+      <option value="15" selected>15 bars/s</option>
+      <option value="60">60 bars/s</option>
+      <option value="0">Max</option>
+    </select>
+    <button id="btnNew" class="btn" type="button">New run</button>
+    <button id="btnTheme" class="btn icon" type="button" aria-label="Toggle light or dark theme">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="layout" id="layout">
+  <section class="panel markets" id="pMarkets" aria-labelledby="hMarkets">
+    <div class="panel-head">
+      <h2 id="hMarkets">Markets</h2>
+      <span id="symCount" class="muted num"></span>
+    </div>
+    <div class="market-filters">
+      <label class="sr-only" for="search">Search symbols</label>
+      <input id="search" class="input" type="search" placeholder="Search symbol or name" autocomplete="off" spellcheck="false">
+      <div class="seg" role="tablist" aria-label="Market list filter">
+        <button type="button" role="tab" class="seg-btn active" data-filter="all" aria-selected="true">All</button>
+        <button type="button" role="tab" class="seg-btn" data-filter="sp" aria-selected="false">S&amp;P</button>
+        <button type="button" role="tab" class="seg-btn" data-filter="gain" aria-selected="false">Gainers</button>
+        <button type="button" role="tab" class="seg-btn" data-filter="lose" aria-selected="false">Losers</button>
+        <button type="button" role="tab" class="seg-btn" data-filter="held" aria-selected="false">Held</button>
+      </div>
+      <label class="sr-only" for="sectorSel">Sector</label>
+      <select id="sectorSel" class="select full" aria-label="Sector"><option value="-1">All sectors</option></select>
+    </div>
+    <div class="list-head"><span>Symbol</span><span>Last</span><span>Chg</span></div>
+    <div id="mList" class="vlist" tabindex="0" role="listbox" aria-label="Symbols"><div id="mListInner" class="vlist-inner"></div></div>
+  </section>
+
+  <section class="panel chart" id="pChart" aria-labelledby="chartSym">
+    <div class="chart-head">
+      <div class="chart-title">
+        <h2 id="chartSym">SIM 500</h2>
+        <span id="chartName" class="muted"></span>
+      </div>
+      <div class="chart-stats">
+        <div><span class="k">Last</span><span id="csLast" class="num strong"></span></div>
+        <div><span class="k">Chg</span><span id="csChg" class="num"></span></div>
+        <div><span class="k">High</span><span id="csHigh" class="num"></span></div>
+        <div><span class="k">Low</span><span id="csLow" class="num"></span></div>
+        <div><span class="k">Vol</span><span id="csVol" class="num"></span></div>
+        <div><span class="k">Bid / Ask</span><span id="csBA" class="num"></span></div>
+      </div>
+      <div class="seg" role="tablist" aria-label="Timeframe">
+        <button type="button" role="tab" class="seg-btn active" data-tf="5m" aria-selected="true">5m</button>
+        <button type="button" role="tab" class="seg-btn" data-tf="1D" aria-selected="false">1D</button>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="mainChart" aria-label="Price chart" role="img"></canvas></div>
+    <div class="minis-head"><h3>Live charts</h3><span class="muted">Most held by bots, then biggest movers. Select one to open it.</span></div>
+    <div id="minis" class="minis"></div>
+  </section>
+
+  <section class="panel feed" id="pFeed" aria-label="News and activity">
+    <div class="panel-head">
+      <div class="seg" role="tablist" aria-label="Feed">
+        <button type="button" role="tab" class="seg-btn active" data-feed="news" aria-selected="true">News</button>
+        <button type="button" role="tab" class="seg-btn" data-feed="trades" aria-selected="false">Bot trades</button>
+        <button type="button" role="tab" class="seg-btn" data-feed="sectors" aria-selected="false">Sectors</button>
+      </div>
+    </div>
+    <div id="feedNews" class="feed-body"></div>
+    <div id="feedTrades" class="feed-body" hidden></div>
+    <div id="feedSectors" class="feed-body sectors" hidden></div>
+  </section>
+
+  <section class="panel bots" id="pBots" aria-labelledby="hBots">
+    <div class="panel-head">
+      <h2 id="hBots">Bots</h2>
+      <span class="muted num" id="botCount"></span>
+    </div>
+    <div class="bot-summary">
+      <div><span class="k">Avg P/L</span><span id="bsAvg" class="num strong"></span></div>
+      <div><span class="k">Best</span><span id="bsBest" class="num"></span></div>
+      <div><span class="k">In profit</span><span id="bsUp" class="num"></span></div>
+    </div>
+    <div class="list-head bots-head"><span>Bot</span><span>Equity</span><span>P/L</span></div>
+    <ol id="botList" class="bot-list"></ol>
+  </section>
+</main>
+
+<nav class="mobile-tabs" aria-label="Panels">
+  <button type="button" data-panel="pMarkets">Markets</button>
+  <button type="button" data-panel="pChart" class="active">Chart</button>
+  <button type="button" data-panel="pBots">Bots</button>
+  <button type="button" data-panel="pFeed">News</button>
+</nav>
+
+<footer class="statusbar">
+  <span id="status">Ready. Press Start.</span>
+  <span class="muted">Fictional market: real US symbols, simulated prices. Not investment advice.</span>
+</footer>
+
+<dialog id="dlgNew" aria-labelledby="dlgNewTitle">
+  <form method="dialog" id="formNew" class="dlg">
+    <h2 id="dlgNewTitle">New run</h2>
+    <div class="field">
+      <span class="label" id="lblPop">Starting bots</span>
+      <div class="pop-row">
+        <button type="button" class="btn" id="popHalf" aria-label="Halve starting bots">Halve</button>
+        <output id="popOut" class="num strong" aria-labelledby="lblPop">20</output>
+        <button type="button" class="btn" id="popDouble" aria-label="Double starting bots">Double</button>
+      </div>
+      <p class="hint" id="popHint">Gen 1: 20 bots. Gen 2: pairs breed one child each, 10 bots. Gen 3 on: pairs have twins, back to 20.</p>
+    </div>
+    <div class="grid2">
+      <div class="field"><label class="label" for="inGens">Generations</label><input class="input" id="inGens" type="number" min="2" max="200" value="6" required></div>
+      <div class="field"><label class="label" for="inDays">Trading days per generation</label><input class="input" id="inDays" type="number" min="1" max="120" value="10" required></div>
+      <div class="field"><label class="label" for="inSeed">Seed</label><input class="input" id="inSeed" type="number" min="1" max="2147483647" value="20270104" required></div>
+      <div class="field"><label class="label" for="inFit">Breeding picks by</label>
+        <select class="select full" id="inFit"><option value="return">Total return</option><option value="risk">Return minus half max drawdown</option></select></div>
+    </div>
+    <p class="err" id="newErr" role="alert" hidden></p>
+    <div class="dlg-actions">
+      <button type="button" class="btn" id="btnCancelNew">Cancel</button>
+      <button type="submit" class="btn primary" id="btnStartNew">Build the box</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgBot" aria-labelledby="dlgBotTitle">
+  <div class="dlg wide">
+    <div class="dlg-top"><h2 id="dlgBotTitle">Bot</h2><button type="button" class="btn icon" id="btnCloseBot" aria-label="Close">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div id="botDetail"></div>
+  </div>
+</dialog>
+
+<dialog id="dlgReport" aria-labelledby="dlgReportTitle">
+  <div class="dlg wide">
+    <div class="dlg-top"><h2 id="dlgReportTitle">Run report</h2><button type="button" class="btn icon" id="btnCloseReport" aria-label="Close">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div id="reportBody"></div>
+    <div class="dlg-actions left">
+      <button type="button" class="btn primary" id="btnXlsx">Download workbook (.xlsx)</button>
+      <label class="sr-only" for="csvSel">CSV sheet</label>
+      <select id="csvSel" class="select"></select>
+      <button type="button" class="btn" id="btnCsv">Download CSV</button>
+    </div>
+  </div>
+</dialog>
+
+<script src="js/symbols.js"></script>
+<script src="js/rng.js"></script>
+<script src="js/news.js"></script>
+<script src="js/market.js"></script>
+<script src="js/bots.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/report.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/app.js"></script>
+<script src="vendor/xlsx.full.min.js" defer></script>
+</body>
+</html>
