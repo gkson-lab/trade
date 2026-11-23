@@ -93,17 +93,32 @@ Use it to learn which genetic make-ups do well.
 
 ## Genetics in brief
 
-Seven Mendelian traits. Each bot carries two alleles per trait, one from each parent; each allele has a 2% chance of mutating (scaled by the run's Mutation setting).
+17 Mendelian genes on 4 chromosomes. Each bot carries two copies of every gene, one from each parent.
 
-| Trait | Alleles | Inheritance | Looks |
-|---|---|---|---|
-| Temperament | A / a | A dominant | Aggressive / Cautious |
-| Horizon | Q / q | Q dominant | Scalper / Swing trader |
-| News sense | N / n | N dominant | Newshound / Skeptic |
-| Herding | H / h | codominant | Herd follower (HH) / Mixed (Hh) / Independent (hh) |
-| Size taste | B / b | codominant | Big caps (BB) / Any size (Bb) / Small caps (bb) |
-| Short selling | R / r | r recessive | Long only / Short seller (rr only) |
-| Stops | T / t | T dominant | Trailing stops / Fixed stops |
+- **Crossing over:** a parent passes on one copy of each chromosome, switching copies between neighbouring genes 25% of the time, so genes on the same chromosome tend to be inherited together.
+- **Mutation:** each allele has a 2% chance of mutating, scaled by the run's Mutation setting and tripled for parents with the Mutator trait.
+
+| Chromosome | Trait | Alleles | Inheritance | Looks |
+|---|---|---|---|---|
+| 1 Risk | Temperament | A / a | A dominant | Aggressive / Cautious |
+| 1 Risk | Conviction | K / k | K dominant | Bold / Measured |
+| 1 Risk | Greed | G / g | codominant | Greedy (GG) / Balanced (Gg) / Quick to bank (gg) |
+| 1 Risk | Loss handling | L / l | L dominant | Loss tolerant / Loss averse (ll) |
+| 2 Style | Horizon | Q / q | Q dominant | Scalper / Swing trader |
+| 2 Style | Trading hours | E / e | codominant | Morning (EE) / All-day (Ee) / Afternoon (ee) |
+| 2 Style | Stops | T / t | T dominant | Trailing stops / Fixed stops |
+| 2 Style | Portfolio spread | D / d | D dominant | Diversifier / Concentrated (dd) |
+| 3 Signals | News sense | N / n | N dominant | Newshound / Skeptic |
+| 3 Signals | Herding | H / h | codominant | Herd follower (HH) / Mixed (Hh) / Independent (hh) |
+| 3 Signals | Momentum view | C / c | C dominant | Trend reader / Contrarian (cc) |
+| 3 Signals | Volatility appetite | V / v | codominant | Volatility seeker (VV) / Neutral (Vv) / Calm seeker (vv) |
+| 4 Focus | Size taste | B / b | codominant | Big caps (BB) / Any size (Bb) / Small caps (bb) |
+| 4 Focus | Short selling | R / r | r recessive | Long only / Short seller (rr only) |
+| 4 Focus | Focus | S / s | S dominant | Generalist / Sector specialist (ss) |
+| 4 Focus | Favourite sectors | 12 sector alleles | both copies count | Which sectors a specialist trades |
+| 4 Focus | Genome stability | M / m | M dominant | Stable genome / Mutator (mm) |
+
+In the exports, `gt_<trait>` is the genotype (dominant allele first; sectors by name) and `trait_<trait>` is how it shows.
 
 On top of the traits, each child gets crossed-over and mutated neural-network weights and continuous genes from its parents.
 

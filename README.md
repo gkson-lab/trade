@@ -13,7 +13,7 @@ The market is fictional. The 6,138 symbols are real NASDAQ, NYSE and AMEX listin
 |---|---|
 | Any browser | Open `index.html` directly, or serve the folder: `python3 -m http.server 8080` |
 | Phone / tablet | Host the folder (GitHub Pages: Settings → Pages → Deploy from branch `main`, root) and open the URL. It installs as an app and works offline after the first visit. |
-| Headless | `node cli.js --mult 2 --gens 6 --days 10 --seed 42` |
+| Headless | `node cli.js --mult 2 --gens 6 --days 10 --seed 42` (add `--gzip` or `--lean` for smaller files, `--xlsx` for Excel copies) |
 | Endless | Browser: **New run → Run forever**, then **Finish** when you want to stop. CLI: `node cli.js --forever` (Ctrl+C finishes the current generation and saves everything; `--max-gens N` and `--max-minutes M` also work) |
 | Combine CSVs | `node tools/combine.js out/run-20270104-x1` or `node tools/combine.js a.zip b/*.csv --out merged.xlsx`. In the browser: **Data → Combine CSVs into one spreadsheet** |
 | Update checker | Built into the page: checks GitHub every 5-10 minutes and shows a **Reload** bar when a new commit lands on `main`. For a local clone: `node tools/check-updates.js` (add `--pull` to fast-forward automatically, `--branch` to pick a branch, `--once` for a single check) |
@@ -36,17 +36,20 @@ Every bot starts each generation with $100,000 by default. Change it in **New ru
 
 ### Genetics and family trees
 
-Every bot carries 7 Mendelian traits: two alleles each, one inherited from each parent, with dominant, recessive and codominant expression. The traits change how it trades:
+Every bot carries **17 Mendelian genes on 4 chromosomes**, two copies of each, one inherited from each parent. They work like real inheritance:
 
-- Aggressive or Cautious
-- Scalper or Swing trader
-- Newshound or Skeptic
-- Herd follower, Mixed or Independent
-- Big caps, Any size or Small caps
-- Short seller (only `rr`)
-- Trailing or Fixed stops
+- **Expression:** genes can be dominant, recessive or codominant. One gene has 12 sector alleles.
+- **Crossing over:** genes on the same chromosome tend to be inherited together.
+- **Mutation:** a mutator gene makes a bot's children mutate more.
 
-Founders each start a **house**, and children take the house of their better-ranked parent. Every bot records its parents, grandparents, children, lineage depth and inbreeding coefficient (Wright's F). Open a bot's panel to see its family and genotype; the **Family Tree** and **Pedigree** tables export all of it. Details are in [docs/DATASET.md](docs/DATASET.md#genetics-in-brief).
+The traits change how a bot trades:
+
+- **Risk:** Aggressive or Cautious · Bold or Measured · Greedy, Balanced or Quick to bank · Loss tolerant or Loss averse
+- **Style:** Scalper or Swing trader · Morning, All-day or Afternoon trader · Trailing or Fixed stops · Diversifier or Concentrated
+- **Signals:** Newshound or Skeptic · Herd follower, Mixed or Independent · Trend reader or Contrarian · Volatility seeker or Calm seeker
+- **Focus:** Big caps or Small caps · Short seller (only `rr`) · Sector specialist (only `ss`, trades just its two favourite sectors) · Mutator (`mm`)
+
+Founders each start a **house**, and children take the house of their better-ranked parent. Every bot records its parents, grandparents, children, lineage depth and inbreeding coefficient (Wright's F). Open a bot's panel to see its family and its genes chromosome by chromosome; the **Family Tree** and **Pedigree** tables export all of it. Details are in [docs/DATASET.md](docs/DATASET.md#genetics-in-brief).
 
 ### Breeding rules
 
@@ -155,6 +158,37 @@ python3 tools/train_model.py out/run-* --task bots                              
 
 The test set is always the latest 20% of dates. Every column is documented in [docs/DATASET.md](docs/DATASET.md).
 
+### Why the data gets big, and how to keep it small
+
+A 60-trading-day run makes about **18 MB of real data**. The biggest tables are:
+
+- training samples: ~150+ stocks a day × ~60 columns
+- round trips: ~90 columns each, because every trade carries the stock's inputs and the bot's genes
+
+Earlier versions also wrote the same rows three more times (two Excel workbooks and a folder per bot), which made the same run **98 MB**. Now:
+
+- **CLI default:** writes each row once, as CSV. The extra copies are opt-in: `--xlsx` and `--bot-folders`.
+- **`--gzip`:** writes `.csv.gz`, about 3x smaller. pandas, `tools/train_model.py` and `tools/combine.js` read it directly.
+- **`--lean`:** gzip plus 50 training samples a day instead of 150. The same 60-day run is **4.7 MB**.
+- **In the app:** New run → *Training samples per day* (Off / 50 / 150 / 400) sets the biggest table. *Trade-level rows kept in memory* caps how much an endless run holds.
+
+### Run it in the cloud for free
+
+The repo is public, so **GitHub Actions minutes are free**, on 4-core, 16 GB runners with up to 6 hours per job. Two workflows are ready:
+
+1. **Simulate** (Actions tab → *Simulate* → *Run workflow*). It runs the box for up to 330 minutes, endless by default, with your choice of days, population, breeding and samples.
+   - The gzipped data is saved as a workflow artifact for 90 days.
+   - It's also saved as a **GitHub Release** `run-N`, which is kept until you delete it; each file can be up to 2 GB.
+   - Uncomment the `schedule:` lines in `.github/workflows/simulate.yml` to run it every day automatically.
+2. **Train** (Actions tab → *Train* → *Run workflow*). It downloads every `run-*` release, stacks them, trains one model with `tools/train_model.py`, and saves `model.joblib`, the report and the predictions. Tick *release* to keep them as a `model-N` release.
+
+Free places to go bigger:
+
+- **Kaggle Notebooks:** free CPU, plus about 30 GPU hours a week. Upload the release files as a Kaggle dataset.
+- **Google Colab:** free notebooks.
+- **Hugging Face Datasets:** free hosting for large public datasets.
+- **Oracle Cloud Always Free:** a small ARM virtual machine that can run `node cli.js --forever` around the clock.
+
 ## Data
 
 Open **Data** at any time, even mid-run, to see the report and export. The exports are:
@@ -209,6 +243,8 @@ cli.js                       headless runner (endless mode, writes each generati
 tools/combine.js             merge generation CSVs / ZIPs into one workbook
 tools/check-updates.js       update checker for a local clone
 tools/train_model.py         train one model on any number of runs (pandas + scikit-learn)
+.github/workflows/simulate.yml   run the box on GitHub's free runners, save data as a release
+.github/workflows/train.yml      train one model on every saved run
 docs/DATASET.md              every training column explained
 vendor/xlsx.full.min.js      SheetJS 0.18.5 (Apache-2.0)
 ```

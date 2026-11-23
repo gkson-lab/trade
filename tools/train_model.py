@@ -32,7 +32,8 @@ def read_any(paths, table):
     for p in paths:
         run = os.path.basename(os.path.normpath(p))
         if os.path.isdir(p):
-            files = sorted(glob.glob(os.path.join(p, "**", table + "*.csv"), recursive=True))
+            files = sorted(glob.glob(os.path.join(p, "**", table + "*.csv"), recursive=True) +
+                           glob.glob(os.path.join(p, "**", table + "*.csv.gz"), recursive=True))
             files = [f for f in files if os.sep + "bots" + os.sep not in f]
             if table == "bots":   # one row per bot per generation lives in each gen folder; avoid the run-level copy
                 files = [f for f in files if "gen-" in f] or files
@@ -46,7 +47,7 @@ def read_any(paths, table):
                         if table == "bots" and "gen-" not in name and any("gen-" in n for n in z.namelist()):
                             continue
                         frames.append(pd.read_csv(io.BytesIO(z.read(name)), low_memory=False).assign(run=run))
-        elif p.endswith(".csv") and table in os.path.basename(p):
+        elif (p.endswith(".csv") or p.endswith(".csv.gz")) and table in os.path.basename(p):
             frames.append(pd.read_csv(p, low_memory=False).assign(run=run))
     if not frames:
         sys.exit("No %s CSVs found in %s" % (table, ", ".join(paths)))

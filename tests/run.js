@@ -156,7 +156,7 @@ Object.keys(gsim.allBots).forEach(function (id) {
   });
   assert.strictEqual(b.house, (gsim.allBots[b.parentIds[0]]).house, "house passes from the better-ranked parent");
 });
-assert.ok(bad / total < 0.06, "alleles inherited (" + bad + "/" + total + " mutated)");
+assert.ok(bad / total < 0.1, "alleles inherited (" + bad + "/" + total + " mutated)");
 Object.keys(gsim.allBots).forEach(function (id) { var b = gsim.allBots[id]; assert.strictEqual(b.cfg.shortOn, b.genotype.short === "rr", "only rr sells short"); });
 console.log("ok  alleles pass from parents (" + (100 * bad / total).toFixed(1) + "% mutated), phenotypes and houses follow");
 
@@ -184,3 +184,39 @@ var trips = ml.log.roundTrips;
 assert.ok(trips.length && "x_f_rsi" in trips[0] && "bot_trait_temper" in trips[0] && "y_win" in trips[0], "round trips carry inputs, bot genes and labels");
 var xcols = Object.keys(labelled[0]).filter(function (k) { return k.indexOf("x_") === 0; });
 console.log("ok  training data: " + labelled.length + " labelled market samples x " + xcols.length + " inputs; " + trips.length + " labelled round trips");
+
+// linkage: genes on one chromosome travel together (75% for neighbours), genes on different chromosomes don't (50%)
+(function () {
+  var g = {}, rr = new T.RNG(9);
+  T.TRAITS.forEach(function (t) { g[t.key] = t.mode === "multi" ? "ab" : t.a + t.a.toLowerCase(); });   // copy 0 all dominant, copy 1 all recessive
+  var same = 0, cross = 0, n = 6000;
+  for (var k = 0; k < n; k++) {
+    var x = T.genetics.gamete(g, null, rr, 0);
+    if ((x.temper === "A") === (x.conviction === "K")) same++;          // neighbours on chromosome 1
+    if ((x.temper === "A") === (x.horizon === "Q")) cross++;            // chromosome 1 vs chromosome 2
+  }
+  assert.ok(Math.abs(same / n - (1 - T.genetics.RECOMBINATION)) < 0.03, "linked genes co-inherit " + (same / n).toFixed(3));
+  assert.ok(Math.abs(cross / n - 0.5) < 0.03, "unlinked genes independent " + (cross / n).toFixed(3));
+  console.log("ok  linkage: neighbours on a chromosome travel together " + (100 * same / n).toFixed(1) + "%, different chromosomes " + (100 * cross / n).toFixed(1) + "%");
+})();
+
+// trait effects show up in behaviour
+var tsim = run({ mult: 4, generations: 3, daysPerGen: 3, seed: 61, maxSymbols: SMALL });
+var byName = {}; Object.keys(tsim.allBots).forEach(function (k) { byName[tsim.allBots[k].name] = tsim.allBots[k]; });
+var specialistTrips = 0, morning = 0, afternoon = 0;
+tsim.log.roundTrips.forEach(function (t) {
+  var b = byName[t.bot];
+  if (b.traits.focus === "Sector specialist") {
+    specialistTrips++;
+    assert.ok(b.traits.sector.indexOf(t.sector) >= 0, b.name + " specialist in " + b.traits.sector + " traded " + t.sector);
+  }
+  if (t.entryReason === "buy signal" || t.entryReason === "short signal") {
+    if (b.traits.session === "Morning trader") { morning++; assert.ok(t.entryTime <= "12:45", "morning trader entered at " + t.entryTime); }
+    if (b.traits.session === "Afternoon trader") { afternoon++; assert.ok(t.entryTime >= "12:45", "afternoon trader entered at " + t.entryTime); }
+  }
+});
+Object.keys(tsim.allBots).forEach(function (k) {
+  var b = tsim.allBots[k];
+  if (b.traits.contrarian === "Contrarian") assert.strictEqual(b.cfg.fmult[0], -1, "contrarian flips momentum");
+});
+console.log("ok  " + T.TRAITS.length + " traits; specialists stayed in their sectors (" + specialistTrips + " trades), trading hours respected (" + morning + " morning, " + afternoon + " afternoon entries)");

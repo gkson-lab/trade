@@ -4,7 +4,7 @@
  *   node tools/combine.js some.zip other/*.csv --out merged.xlsx
  * Same-named files (trades.csv from gen-0001, gen-0002, ...) are stacked into one sheet with a "source" column. */
 "use strict";
-var fs = require("fs"), path = require("path"), vm = require("vm");
+var fs = require("fs"), path = require("path"), vm = require("vm"), zlib = require("zlib");
 
 function load() {
   if (global.T && global.T.Report) return;
@@ -19,12 +19,13 @@ function collect(p, base, out) {
     fs.readdirSync(p).sort().forEach(function (f) {
       if (f === "bots") return;                     // per-bot folders are a different view of the same rows
       var q = path.join(p, f);
-      if (fs.statSync(q).isDirectory() ? /^gen-\d+$/.test(f) : /\.csv$/i.test(f) && base !== p) collect(q, base, out);
+      if (fs.statSync(q).isDirectory() ? /^gen-\d+$/.test(f) : /\.csv(\.gz)?$/i.test(f) && base !== p) collect(q, base, out);
     });
   } else if (/\.zip$/i.test(p)) {
     T.Report.unzip(XLSXlib(), fs.readFileSync(p)).filter(function (f) { return /gen-\d+\//.test(f.name); }).forEach(function (f) { out.push(f); });
-  } else if (/\.csv$/i.test(p)) {
-    out.push({ name: path.relative(base, p).replace(/\\/g, "/") || path.basename(p), text: fs.readFileSync(p, "utf8") });
+  } else if (/\.csv(\.gz)?$/i.test(p)) {
+    var buf = fs.readFileSync(p), name = (path.relative(base, p).replace(/\\/g, "/") || path.basename(p)).replace(/\.gz$/i, "");
+    out.push({ name: name, text: (/\.gz$/i.test(p) ? zlib.gunzipSync(buf) : buf).toString("utf8") });
   }
   return out;
 }

@@ -1,0 +1,77 @@
+# Run the trading box in the cloud on GitHub's free runners (free for public repositories).
+# Start it from the Actions tab -> "Simulate" -> "Run workflow". Each run saves its data:
+#   - as a workflow artifact (downloadable for 90 days), and
+#   - as a GitHub Release named run-<number> (kept until you delete it), which the "Train" workflow reads.
+name: Simulate
+on:
+  workflow_dispatch:
+    inputs:
+      generations:
+        description: "Generations (0 = keep going until the time limit)"
+        default: "0"
+      minutes:
+        description: "Stop after this many minutes (GitHub allows up to 360 per job)"
+        default: "330"
+      days:
+        description: "Trading days per generation"
+        default: "10"
+      mult:
+        description: "Population multiplier (1 = 20 bots, 2 = 40 ...)"
+        default: "1"
+      breeding:
+        description: "Breeding preset (node cli.js --list-breeding shows them all)"
+        default: "ranked"
+      samples:
+        description: "Training samples per day"
+        default: "150"
+      seed:
+        description: "Seed (blank = use the run number)"
+        default: ""
+      release:
+        description: "Save the data as a GitHub Release"
+        type: boolean
+        default: true
+  # To run on a timer as well, uncomment these two lines (cron is in UTC; this is daily at 06:17).
+  # schedule:
+  #   - cron: "17 6 * * *"
+
+permissions:
+  contents: write   # needed to create the release
+
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run the box
+        env:
+          GENS: ${{ inputs.generations || '0' }}
+          MINUTES: ${{ inputs.minutes || '330' }}
+          DAYS: ${{ inputs.days || '10' }}
+          MULT: ${{ inputs.mult || '1' }}
+          BREEDING: ${{ inputs.breeding || 'ranked' }}
+          SAMPLES: ${{ inputs.samples || '150' }}
+          SEED: ${{ inputs.seed || github.run_number }}
+        run: |
+          if [ "$GENS" = "0" ]; then G="--forever"; else G="--gens $GENS"; fi
+          node cli.js $G --max-minutes "$MINUTES" --days "$DAYS" --mult "$MULT" --breeding "$BREEDING" \
+            --samples "$SAMPLES" --seed "$SEED" --gzip --budget 200000 --out out
+          tar -czf "trade-box-run-${{ github.run_number }}.tar.gz" -C out .
+          du -sh out "trade-box-run-${{ github.run_number }}.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trade-box-run-${{ github.run_number }}
+          path: trade-box-run-${{ github.run_number }}.tar.gz
+          retention-days: 90
+      - name: Save as a release
+        if: ${{ github.event_name == 'schedule' || inputs.release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "run-${{ github.run_number }}" "trade-box-run-${{ github.run_number }}.tar.gz" \
+            --title "Simulation run ${{ github.run_number }}" \
+            --notes "Seed ${{ inputs.seed || github.run_number }}, breeding ${{ inputs.breeding || 'ranked' }}, ${{ inputs.days || '10' }} days per generation, x${{ inputs.mult || '1' }} population. Gzipped CSVs; see docs/DATASET.md."

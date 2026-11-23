@@ -60,7 +60,7 @@
   };
 
   /* Apply trait phenotypes on top of the decoded continuous genes. */
-  function express(c, tr) {
+  function express(c, tr, geno) {
     if (tr.temper === "Aggressive") { c.posSize = Math.min(0.36, c.posSize * 1.3); c.stopLoss *= 1.25; }
     else { c.posSize *= 0.75; c.cashReserve = Math.min(0.6, c.cashReserve + 0.1); }
     if (tr.horizon === "Scalper") { c.interval = Math.max(1, Math.round(c.interval / 2)); c.maxHold = Math.min(c.maxHold, 3); }
@@ -70,6 +70,22 @@
     c.sizeBias = tr.size === "Big caps" ? 0.12 : tr.size === "Small caps" ? -0.12 : 0;
     c.shortOn = tr.short === "Short seller";
     c.trail = tr.trail === "Trailing stops";
+    if (tr.conviction === "Bold") c.conviction = Math.min(1, c.conviction + 0.3); else c.conviction *= 0.5;
+    if (tr.greed === "Greedy") c.takeProfit *= 1.5; else if (tr.greed === "Quick to bank") c.takeProfit *= 0.6;
+    if (tr.loss === "Loss averse") c.stopLoss *= 0.6; else c.stopLoss *= 1.1;
+    c.entryFrom = tr.session === "Afternoon trader" ? 39 : 1;
+    c.entryTo = tr.session === "Morning trader" ? 39 : 77;
+    if (tr.spread === "Diversifier") { c.maxPos = Math.min(30, Math.round(c.maxPos * 1.5)); c.posSize *= 0.75; }
+    else { c.maxPos = Math.max(2, Math.round(c.maxPos * 0.6)); c.posSize = Math.min(0.36, c.posSize * 1.25); }
+    c.volBias = tr.vol === "Volatility seeker" ? 0.1 : tr.vol === "Calm seeker" ? -0.1 : 0;
+    c.fmult = new Float32Array(NF); for (var k = 0; k < NF; k++) c.fmult[k] = 1;
+    c.fmult[4] = c.newsMult;
+    if (tr.contrarian === "Contrarian") { c.fmult[0] = -1; c.fmult[1] = -1; c.fmult[2] = -1; }
+    c.sectors = null;
+    if (tr.focus === "Sector specialist" && geno) {
+      c.sectors = {};
+      c.sectors[SECTOR_ALLELES.indexOf(geno.sector[0])] = 1; c.sectors[SECTOR_ALLELES.indexOf(geno.sector[1])] = 1;
+    }
     return c;
   }
 
@@ -90,51 +106,101 @@
     };
   }
 
-  /* Mendelian traits. Each bot carries two alleles per trait, one from each parent (founders get random ones).
-   * Uppercase = dominant allele. "dominant": one uppercase copy shows the dominant look.
-   * "codominant": 2, 1 or 0 uppercase copies each show differently. A recessive look needs two lowercase copies. */
+  /* Mendelian traits on 4 chromosomes. Each bot carries two copies of every gene (one from each parent).
+   * Uppercase = dominant allele. "dominant": one uppercase copy shows the dominant look; the recessive look needs
+   * two lowercase copies. "codominant": 2, 1 or 0 uppercase copies each look different. "multi": one of 12 sector
+   * alleles per copy. Genes on the same chromosome are linked: a parent passes on one copy of each chromosome,
+   * switching copies between neighbouring genes with probability RECOMBINATION (crossing over). */
   var TRAITS = [
-    { key: "temper", name: "Temperament", a: "A", mode: "dominant", dom: "Aggressive", rec: "Cautious", pDom: 0.5,
+    // chromosome 1: risk
+    { key: "temper", chr: 1, name: "Temperament", a: "A", mode: "dominant", dom: "Aggressive", rec: "Cautious", pDom: 0.5,
       effect: "Aggressive: 30% bigger positions, 25% wider stops. Cautious: 25% smaller positions, 10% more cash held back." },
-    { key: "horizon", name: "Horizon", a: "Q", mode: "dominant", dom: "Scalper", rec: "Swing trader", pDom: 0.45,
+    { key: "conviction", chr: 1, name: "Conviction", a: "K", mode: "dominant", dom: "Bold", rec: "Measured", pDom: 0.5,
+      effect: "Bold: sizes up hard on its strongest signals. Measured: keeps position sizes even." },
+    { key: "greed", chr: 1, name: "Greed", a: "G", mode: "codominant", looks: ["Quick to bank", "Balanced", "Greedy"], pDom: 0.5,
+      effect: "Greedy: profit target 50% higher. Quick to bank: profit target 40% lower." },
+    { key: "loss", chr: 1, name: "Loss handling", a: "L", mode: "dominant", dom: "Loss tolerant", rec: "Loss averse", pDom: 0.6,
+      effect: "Loss averse (ll): stop loss 40% tighter. Loss tolerant: stop loss 10% wider." },
+    // chromosome 2: style
+    { key: "horizon", chr: 2, name: "Horizon", a: "Q", mode: "dominant", dom: "Scalper", rec: "Swing trader", pDom: 0.45,
       effect: "Scalper: decides twice as often, holds 3 days at most. Swing trader: holds 50% longer, 20% higher profit target." },
-    { key: "news", name: "News sense", a: "N", mode: "dominant", dom: "Newshound", rec: "Skeptic", pDom: 0.5,
+    { key: "session", chr: 2, name: "Trading hours", a: "E", mode: "codominant", looks: ["Afternoon trader", "All-day trader", "Morning trader"], pDom: 0.5,
+      effect: "Morning traders only open new positions before 12:45, afternoon traders only after 12:45. Exits happen any time." },
+    { key: "trail", chr: 2, name: "Stops", a: "T", mode: "dominant", dom: "Trailing stops", rec: "Fixed stops", pDom: 0.5,
+      effect: "Trailing stops follow the best price reached; fixed stops stay at the entry level." },
+    { key: "spread", chr: 2, name: "Portfolio spread", a: "D", mode: "dominant", dom: "Diversifier", rec: "Concentrated", pDom: 0.5,
+      effect: "Diversifier: 50% more positions, each 25% smaller. Concentrated (dd): 40% fewer positions, each 25% bigger." },
+    // chromosome 3: signals
+    { key: "news", chr: 3, name: "News sense", a: "N", mode: "dominant", dom: "Newshound", rec: "Skeptic", pDom: 0.5,
       effect: "Newshound: news sentiment counts double. Skeptic: counts half." },
-    { key: "herd", name: "Herding", a: "H", mode: "codominant", looks: ["Independent", "Mixed", "Herd follower"], pDom: 0.5,
+    { key: "herd", chr: 3, name: "Herding", a: "H", mode: "codominant", looks: ["Independent", "Mixed", "Herd follower"], pDom: 0.5,
       effect: "Herd follower adds the market trend to every score (Mixed adds half)." },
-    { key: "size", name: "Size taste", a: "B", mode: "codominant", looks: ["Small caps", "Any size", "Big caps"], pDom: 0.5,
+    { key: "contrarian", chr: 3, name: "Momentum view", a: "C", mode: "dominant", dom: "Trend reader", rec: "Contrarian", pDom: 0.7,
+      effect: "Contrarian (cc): reads every momentum signal backwards, buying what fell and selling what rose." },
+    { key: "vol", chr: 3, name: "Volatility appetite", a: "V", mode: "codominant", looks: ["Calm seeker", "Neutral on volatility", "Volatility seeker"], pDom: 0.5,
+      effect: "Volatility seekers tilt toward jumpy stocks, calm seekers away from them." },
+    // chromosome 4: focus
+    { key: "size", chr: 4, name: "Size taste", a: "B", mode: "codominant", looks: ["Small caps", "Any size", "Big caps"], pDom: 0.5,
       effect: "Big caps tilts scores toward large companies, Small caps toward small ones." },
-    { key: "short", name: "Short selling", a: "R", mode: "dominant", dom: "Long only", rec: "Short seller", pDom: 0.62,
+    { key: "short", chr: 4, name: "Short selling", a: "R", mode: "dominant", dom: "Long only", rec: "Short seller", pDom: 0.62,
       effect: "Only bots with two recessive r alleles (rr) sell short." },
-    { key: "trail", name: "Stops", a: "T", mode: "dominant", dom: "Trailing stops", rec: "Fixed stops", pDom: 0.5,
-      effect: "Trailing stops follow the best price reached; fixed stops stay at the entry level." }
+    { key: "focus", chr: 4, name: "Focus", a: "S", mode: "dominant", dom: "Generalist", rec: "Sector specialist", pDom: 0.65,
+      effect: "Sector specialists (ss) only open positions in their two favourite sectors." },
+    { key: "sector", chr: 4, name: "Favourite sectors", a: null, mode: "multi",
+      effect: "Two sector alleles, one from each parent. They only change trading for sector specialists." },
+    { key: "mutator", chr: 4, name: "Genome stability", a: "M", mode: "dominant", dom: "Stable genome", rec: "Mutator", pDom: 0.7,
+      effect: "Mutators (mm) pass on genes with three times the usual mutation rate." }
   ];
-  var ALLELE_MUTATION = 0.02;
+  var CHROMOSOMES = [1, 2, 3, 4].map(function (c) { return TRAITS.filter(function (t) { return t.chr === c; }); });
+  var CHR_NAMES = { 1: "Risk", 2: "Style", 3: "Signals", 4: "Focus" };
+  var ALLELE_MUTATION = 0.02, RECOMBINATION = 0.25;
+  var SECTOR_ALLELES = "abcdefghijkl";
 
   function randomGenotype(r) {
     var g = {};
-    TRAITS.forEach(function (t) { g[t.key] = pair(r.next() < t.pDom, r.next() < t.pDom, t.a); });
-    return g;
-  }
-  function pair(d1, d2, a) { return (d1 ? a : a.toLowerCase()) + (d2 ? a : a.toLowerCase()); }
-  function sortPair(x) { return x[0] === x[0].toUpperCase() ? x : x[1] + x[0]; }
-  /* Child gets one random allele from each parent; each allele can mutate. */
-  function inheritGenotype(ga, gb, r, mut) {
-    var g = {};
     TRAITS.forEach(function (t) {
-      var x = ga[t.key][r.next() < 0.5 ? 0 : 1], y = gb[t.key][r.next() < 0.5 ? 0 : 1];
-      if (r.next() < ALLELE_MUTATION * mut) x = x === t.a ? t.a.toLowerCase() : t.a;
-      if (r.next() < ALLELE_MUTATION * mut) y = y === t.a ? t.a.toLowerCase() : t.a;
-      g[t.key] = sortPair(x + y);
+      g[t.key] = t.mode === "multi" ? SECTOR_ALLELES[r.int(0, 11)] + SECTOR_ALLELES[r.int(0, 11)]
+        : (r.next() < t.pDom ? t.a : t.a.toLowerCase()) + (r.next() < t.pDom ? t.a : t.a.toLowerCase());
     });
     return g;
   }
+  function mutate(t, al, r) {
+    if (t.mode === "multi") { var k; do { k = SECTOR_ALLELES[r.int(0, 11)]; } while (k === al); return k; }
+    return al === t.a ? t.a.toLowerCase() : t.a;
+  }
+  /* One parent's contribution: a copy of each chromosome, with crossing over and mutation. */
+  function gamete(g, traits, r, mut) {
+    var out = {}, rate = ALLELE_MUTATION * mut * (traits && traits.mutator === "Mutator" ? 3 : 1);
+    CHROMOSOMES.forEach(function (chr) {
+      var h = r.next() < 0.5 ? 0 : 1;
+      chr.forEach(function (t, k) {
+        if (k > 0 && r.next() < RECOMBINATION) h = 1 - h;
+        var al = g[t.key][h];
+        if (r.next() < rate) al = mutate(t, al, r);
+        out[t.key] = al;
+      });
+    });
+    return out;
+  }
+  /* Child genotype: first copy from parent A, second from parent B (phase is kept, so linkage carries on). */
+  function inheritGenotype(ga, gb, r, mut, ta, tb) {
+    var x = gamete(ga, ta, r, mut), y = gamete(gb, tb, r, mut), g = {};
+    TRAITS.forEach(function (t) { g[t.key] = x[t.key] + y[t.key]; });
+    return g;
+  }
+  function sectorName(al) { return T.SECTORS ? T.SECTORS[SECTOR_ALLELES.indexOf(al)] : al; }
   function phenotype(t, gt) {
+    if (t.mode === "multi") return gt[0] === gt[1] ? sectorName(gt[0]) : sectorName(gt[0]) + " & " + sectorName(gt[1]);
     var up = (gt[0] === t.a ? 1 : 0) + (gt[1] === t.a ? 1 : 0);
     if (t.mode === "codominant") return t.looks[up];
     return up > 0 ? t.dom : t.rec;
   }
   function phenotypes(g) { var o = {}; TRAITS.forEach(function (t) { o[t.key] = phenotype(t, g[t.key]); }); return o; }
+  /* Genotype as people write it: dominant allele first; sectors by name. */
+  function showGenotype(t, gt) {
+    if (t.mode === "multi") return sectorName(gt[0]) + " / " + sectorName(gt[1]);
+    return gt[0] === t.a ? gt : gt[1] + gt[0];
+  }
 
   var NAME_A = ["Ash", "Brine", "Cobalt", "Dune", "Ember", "Flint", "Gale", "Harbor", "Iris", "Jade", "Kestrel", "Lumen", "Mako", "Nova",
     "Onyx", "Pike", "Quill", "Rook", "Slate", "Talon", "Umber", "Vale", "Wren", "Xeno", "Yarrow", "Zephyr"];
@@ -148,7 +214,7 @@
     this.genome = genome;
     this.parents = parents || [];
     this.name = NAME_A[id % NAME_A.length] + "-" + String(id).padStart(3, "0");
-    this.cfg = express(decode(genome.p), this.traits);
+    this.cfg = express(decode(genome.p), this.traits, this.genotype);
     this.offset = rng.int(0, 11);
     this.style = styleOf(genome);
     this.age = 0;
@@ -185,13 +251,13 @@
   }
 
   Bot.prototype.score = function (m, i) {
-    var base = m.featuresOf(i), f = m.features, w = this.genome.w, out = w[NW - 1], c = this.cfg, nm = c.newsMult;
+    var base = m.featuresOf(i), f = m.features, w = this.genome.w, out = w[NW - 1], c = this.cfg, fm = c.fmult;
     for (var h = 0; h < H; h++) {
-      var a = w[NF * H + h] + f[base + 4] * (nm - 1) * w[4 * H + h];
-      for (var k = 0; k < NF; k++) a += f[base + k] * w[k * H + h];
+      var a = w[NF * H + h];
+      for (var k = 0; k < NF; k++) a += f[base + k] * fm[k] * w[k * H + h];
       out += Math.tanh(a) * w[NF * H + H + h];
     }
-    return Math.tanh(out + c.herdBias * f[base + 7] + c.sizeBias * f[base + 10]);
+    return Math.tanh(out + c.herdBias * f[base + 7] + c.sizeBias * f[base + 10] + c.volBias * f[base + 5]);
   };
 
   Bot.prototype.markEquity = function (m) {
@@ -324,11 +390,12 @@
       if ((q > 0 && s < c.sellTh) || (q < 0 && s > -c.sellTh)) this.fill(m, +k, -q, "signal");
     }
     if (m.bar >= m.BARS_PER_DAY - 1) return true;  // no new entries into the closing print
+    if (m.bar < c.entryFrom || m.bar > c.entryTo) return true;   // outside this bot's trading hours (a trait)
 
     var pool = m.pool(), best = [], worst = [], buyTh = c.buyTh;
     for (var j = 0; j < pool.length; j++) {
       var i = pool[j];
-      if (this.pos[i]) continue;
+      if (this.pos[i] || (c.sectors && !c.sectors[m.sector[i]])) continue;
       var sc = this.score(m, i);
       if (sc > buyTh) best.push([sc, i]);
       else if (c.shortOn && sc < -buyTh) worst.push([sc, i]);
@@ -457,7 +524,8 @@
   };
 
   T.TRAITS = TRAITS;
-  T.genetics = { random: randomGenotype, inherit: inheritGenotype, phenotypes: phenotypes, phenotype: phenotype };
+  T.genetics = { random: randomGenotype, inherit: inheritGenotype, phenotypes: phenotypes, phenotype: phenotype, show: showGenotype,
+    gamete: gamete, CHROMOSOMES: CHROMOSOMES, CHR_NAMES: CHR_NAMES, RECOMBINATION: RECOMBINATION, ALLELE_MUTATION: ALLELE_MUTATION };
   T.Genome = Genome;
   T.Bot = Bot;
   T.decodeGenes = decode;

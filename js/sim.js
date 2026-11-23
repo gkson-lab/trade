@@ -82,7 +82,7 @@
   Sim.prototype.markAlive = function () { var a = Object.create(null); this.bots.forEach(function (b) { a[b.id] = 1; }); this.alive = a; };
 
   Sim.prototype.newBot = function (genome, parents, meta) {
-    var gt = parents.length ? T.genetics.inherit(parents[0].genotype, parents[1].genotype, this.rng, this.cfg.mutation) : null;
+    var gt = parents.length ? T.genetics.inherit(parents[0].genotype, parents[1].genotype, this.rng, this.cfg.mutation, parents[0].traits, parents[1].traits) : null;
     var b = new T.Bot(this.nextId++, this.gen, genome, parents.map(function (p) { return p.name; }), this.rng, this.cfg.startCash, gt);
     b.parentIds = parents.map(function (p) { return p.id; });
     var founders = this.nextId - 2;
@@ -105,14 +105,14 @@
     return b;
   };
 
-  Sim.prototype.genotypeString = function (b) { return T.TRAITS.map(function (t) { return b.genotype[t.key]; }).join(" "); };
+  Sim.prototype.genotypeString = function (b) { return T.TRAITS.map(function (t) { return t.mode === "multi" ? b.genotype[t.key] : T.genetics.show(t, b.genotype[t.key]); }).join(" "); };
   Sim.prototype.traitString = function (b) { return T.TRAITS.map(function (t) { return b.traits[t.key]; }).join(", "); };
   /* Columns describing a bot's genetics, prefixed so they can be joined onto any table. */
   Sim.prototype.geneCols = function (b, prefix) {
     var o = {}, c = b.cfg;
     prefix = prefix || "";
     o[prefix + "house"] = b.house; o[prefix + "lineageDepth"] = b.lineageDepth; o[prefix + "inbreeding"] = r4(b.inbreeding);
-    T.TRAITS.forEach(function (t) { o[prefix + "gt_" + t.key] = b.genotype[t.key]; o[prefix + "trait_" + t.key] = b.traits[t.key]; });
+    T.TRAITS.forEach(function (t) { o[prefix + "gt_" + t.key] = T.genetics.show(t, b.genotype[t.key]); o[prefix + "trait_" + t.key] = b.traits[t.key]; });
     o[prefix + "buyTh"] = r4(c.buyTh); o[prefix + "sellTh"] = r4(c.sellTh); o[prefix + "maxPos"] = c.maxPos; o[prefix + "posSize"] = r4(c.posSize);
     o[prefix + "stopLoss"] = r4(c.stopLoss); o[prefix + "takeProfit"] = r4(c.takeProfit); o[prefix + "interval"] = c.interval; o[prefix + "maxHold"] = c.maxHold;
     o[prefix + "cashReserve"] = r4(c.cashReserve); o[prefix + "conviction"] = r4(c.conviction);
@@ -361,6 +361,12 @@
     var hk = Object.keys(houses).sort(function (a, b) { return houses[b] - houses[a]; });
     row.housesAlive = hk.length; row.topHouse = hk[0] + " x" + houses[hk[0]]; row.houseShares = hk.map(function (h) { return h + " x" + houses[h]; }).join("; ");
     T.TRAITS.forEach(function (t) {
+      if (t.mode === "multi") {
+        var cnt = {};
+        bots.forEach(function (b) { for (var q = 0; q < 2; q++) { var nm = T.genetics.show(t, b.genotype[t.key]).split(" / ")[q]; cnt[nm] = (cnt[nm] || 0) + 1; } });
+        row["alleles_" + t.key] = Object.keys(cnt).sort(function (a, b) { return cnt[b] - cnt[a]; }).map(function (k) { return k + " x" + cnt[k]; }).join("; ");
+        return;
+      }
       var dom = 0, looks = {};
       bots.forEach(function (b) { var gt = b.genotype[t.key]; dom += (gt[0] === t.a ? 1 : 0) + (gt[1] === t.a ? 1 : 0); looks[b.traits[t.key]] = (looks[b.traits[t.key]] || 0) + 1; });
       row["allele_" + t.a] = dom / (2 * n);
@@ -459,7 +465,7 @@
         inbreeding: r4(b.inbreeding), children: ch.length, grandchildren: grand,
         status: self.alive[id] && !self.done ? "alive" : rr.length ? "retired" : "never traded", generationsTraded: rr.length,
         compoundedReturn: rr.length ? rr.reduce(function (a, x) { return a * (1 + x); }, 1) - 1 : "", genotype: self.genotypeString(b) };
-      T.TRAITS.forEach(function (t) { row["gt_" + t.key] = b.genotype[t.key]; row["trait_" + t.key] = b.traits[t.key]; });
+      T.TRAITS.forEach(function (t) { row["gt_" + t.key] = T.genetics.show(t, b.genotype[t.key]); row["trait_" + t.key] = b.traits[t.key]; });
       return row;
     });
   };

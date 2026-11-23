@@ -339,8 +339,8 @@
       (kids.length ? "Children: " + kids.map(function (x) { return x.name; }).join(", ") + ". " : "No children yet. ") +
       "Inbreeding coefficient " + b.inbreeding.toFixed(3) + (b.inbreeding >= 0.25 ? " (as close as full siblings' children)" : b.inbreeding >= 0.0625 ? " (as close as first cousins' children or closer)" : "") + "."));
     body.appendChild(el("h3", null, "Traits"));
-    var traitTable = table(["Trait", "Genotype", "Shows as", "Effect"], T.TRAITS.map(function (t) {
-      return [t.name, b.genotype[t.key], b.traits[t.key], t.effect];
+    var traitTable = table(["Chromosome", "Trait", "Genotype", "Shows as", "Effect"], T.TRAITS.map(function (t) {
+      return [t.chr + " " + T.genetics.CHR_NAMES[t.chr], t.name, T.genetics.show(t, b.genotype[t.key]), b.traits[t.key], t.effect];
     }), -1);
     traitTable.classList.add("wrap-last");
     body.appendChild(traitTable);
@@ -472,12 +472,16 @@
           g.avgSharpe.toFixed(2), pct(g.avgAlphaAnn, 1), (g.avgWinRate * 100).toFixed(1) + "%", gen.diversity ? gen.diversity.toFixed(3) : "", pct(g.indexReturn), g.avgSimVix.toFixed(1), g.avgReturn];
       }), 2));
     body.appendChild(el("h3", null, "Genetics" + (gensAll.length > 20 ? " (last 20 generations)" : "")));
-    body.appendChild(el("p", "hint", "Breeding rule: " + sim.ruleName + ". Allele columns show how common each dominant allele is (A aggressive, Q scalper, N newshound, H herding, B big caps, R long only, T trailing stops)."));
-    body.appendChild(table(["Gen", "Inbreeding", "Houses", "Top house", "A", "Q", "N", "H", "B", "R", "T", "Short sellers"],
+    var bin = T.TRAITS.filter(function (t) { return t.mode !== "multi"; });
+    body.appendChild(el("p", "hint", "Breeding rule: " + sim.ruleName + ". Letter columns show how common each dominant allele is: " +
+      bin.map(function (t) { return t.a + " " + (t.dom || t.looks[2]).toLowerCase(); }).join(", ") + "."));
+    var gtab = table(["Gen", "Inbreeding", "Houses", "Top house"].concat(bin.map(function (t) { return t.a; })).concat(["Favourite sectors"]),
       sim.log.genetics.slice(-20).reverse().map(function (g) {
-        var f = function (a) { return Math.round(g["allele_" + a] * 100) + "%"; };
-        return ["G" + g.gen, g.avgInbreeding.toFixed(3), g.housesAlive, g.topHouse, f("A"), f("Q"), f("N"), f("H"), f("B"), f("R"), f("T"), Math.round(g.shortersPct * 100) + "%"];
-      }), -1));
+        return ["G" + g.gen, g.avgInbreeding.toFixed(3), g.housesAlive, g.topHouse].concat(bin.map(function (t) { return Math.round(g["allele_" + t.a] * 100) + "%"; }))
+          .concat([(g.alleles_sector || "").split("; ").slice(0, 2).join("; ")]);
+      }), -1);
+    gtab.classList.add("wrap-last");
+    body.appendChild(gtab);
     body.appendChild(el("h3", null, "Top 10 bot runs"));
     var top = sim.log.bots.slice().sort(function (a, b) { return b.returnPct - a.returnPct; }).slice(0, 10);
     body.appendChild(table(["Bot", "Gen", "Style", "Return", "P/L", "Max DD", "Sharpe", "Trades", "Win rate"],
@@ -650,6 +654,7 @@
       $("inGens").value = S.cfg.generations || 6; $("inForever").checked = !!S.cfg.forever; $("inGens").disabled = !!S.cfg.forever;
       $("inBudget").value = String(S.cfg.detailBudget || 1500000); $("inDays").value = S.cfg.daysPerGen; $("inCash").value = S.cfg.startCash || 100000; $("inSeed").value = S.cfg.seed; $("inFit").value = S.cfg.fitness;
       $("inMut").value = String(S.cfg.mutation || 1); loadBreeding(S.cfg);
+      $("inSamples").value = String(S.cfg.samplesPerDay !== undefined ? S.cfg.samplesPerDay : 150);
       $("newErr").hidden = true;
       $("dlgNew").showModal();
     });
@@ -667,7 +672,7 @@
       if (!bad && br.error) bad = br.error;
       if (bad) { e.preventDefault(); err.textContent = bad; err.hidden = false; return; }
       build({ mult: mult, generations: Math.round(g), forever: forever, daysPerGen: Math.round(d), seed: Math.round(s), fitness: $("inFit").value,
-        detailBudget: +$("inBudget").value, startCash: Math.round(cash * 100) / 100, mutation: +$("inMut").value, breeding: br.breeding, breedPool: br.breedPool,
+        detailBudget: +$("inBudget").value, startCash: Math.round(cash * 100) / 100, mutation: +$("inMut").value, samplesPerDay: +$("inSamples").value, breeding: br.breeding, breedPool: br.breedPool,
         breedPairing: br.breedPairing, brackets: br.brackets, levels: br.levels, threshold: br.threshold, threshold2: br.threshold2, pct: br.pct, allowed: br.allowed });
     });
     $("btnCloseBot").addEventListener("click", function () { $("dlgBot").close(); });

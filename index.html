@@ -204,6 +204,14 @@
       <fieldset class="field" id="fAllowed"><legend class="label">Brackets that can breed</legend><div id="allowedBoxes" class="checks"></div></fieldset>
       <p class="breed-summary" id="breedSummary"></p>
     </fieldset>
+    <div class="field"><label class="label" for="inSamples">Training samples per day</label>
+      <select class="select full" id="inSamples">
+        <option value="0">Off (smallest data)</option>
+        <option value="50">50 stocks a day (lean)</option>
+        <option value="150" selected>150 stocks a day</option>
+        <option value="400">400 stocks a day (big model, big files)</option>
+      </select>
+      <span class="hint">Stocks the bots hold and stocks with news that day are always sampled too. This is the biggest table in the training data.</span></div>
     <div class="field"><label class="label" for="inBudget">Trade-level rows kept in memory</label>
       <select class="select full" id="inBudget">
         <option value="500000">500,000 (phones)</option>

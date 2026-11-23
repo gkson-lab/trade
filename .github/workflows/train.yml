@@ -1,0 +1,65 @@
+# Train one model on every simulation run saved as a release (see simulate.yml), on GitHub's free runners.
+# Start it from the Actions tab -> "Train" -> "Run workflow". The fitted model and its report are
+# saved as a workflow artifact, and as a release named model-<number> if you tick "release".
+name: Train
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "market (stock vs index), trips (will a trade win), or bots (which genes pay)"
+        default: "market"
+      target:
+        description: "Target column (blank = the task's default)"
+        default: ""
+      release:
+        description: "Save the model as a GitHub Release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pandas scikit-learn joblib
+      - name: Download every saved run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p runs
+          for tag in $(gh release list --limit 1000 --json tagName --jq '.[].tagName | select(startswith("run-"))'); do
+            mkdir -p "runs/$tag"
+            gh release download "$tag" --dir "runs/$tag" --pattern '*.tar.gz'
+            tar -xzf runs/$tag/*.tar.gz -C "runs/$tag"
+            rm runs/$tag/*.tar.gz
+          done
+          ls runs | wc -l | xargs echo "runs downloaded:"
+          du -sh runs
+      - name: Train
+        run: |
+          T=""; if [ -n "${{ inputs.target }}" ]; then T="--target ${{ inputs.target }}"; fi
+          python3 tools/train_model.py runs/*/run-* --task "${{ inputs.task || 'market' }}" $T \
+            --save model.joblib --predictions predictions.csv | tee report.txt
+          gzip -f predictions.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: model-${{ github.run_number }}
+          path: |
+            model.joblib
+            report.txt
+            predictions.csv.gz
+          retention-days: 90
+      - name: Save as a release
+        if: ${{ inputs.release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "model-${{ github.run_number }}" model.joblib report.txt predictions.csv.gz \
+            --title "Model ${{ github.run_number }} (${{ inputs.task || 'market' }})" --notes-file report.txt
