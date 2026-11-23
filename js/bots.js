@@ -1,21 +1,26 @@
-/* Trading agents. Each bot is a small neural network (11 market features -> 8 hidden -> 1 score)
+/* Trading agents. Each bot is a small neural network (15 market features -> 8 hidden -> 1 score)
  * plus a set of risk/behaviour genes. Bots trade the shared market with realistic frictions:
- * bid/ask spread, size-based price impact, per-share commission, SEC fee, short borrow cost, margin calls. */
+ * bid/ask spread, size-based price impact, per-share commission, SEC fee, short borrow cost, margin calls,
+ * dividends (paid to longs, charged to shorts) and stock splits.
+ *
+ * Every bot keeps a full ledger: fills, round trips (entry to exit with excursions), 30-minute equity
+ * samples aligned with the SIM 500, daily exposure, P/L by sector, side and symbol. */
 (function (T) {
   "use strict";
 
-  var NF = 11, H = 8;
+  var NF = 15, H = 8;
   var NW = NF * H + H + H + 1;
   var PARAMS = ["buyTh", "sellTh", "maxPos", "posSize", "stopLoss", "takeProfit", "interval", "maxHold", "cashReserve", "shortOn", "trail", "conviction"];
   var FEATURE_NAMES = ["Short momentum", "Day momentum", "Week momentum", "Mean reversion", "News sentiment", "Volatility",
-    "Volume surge", "Market trend", "Sector trend", "Beta", "Size"];
+    "Volume surge", "Market trend", "Sector trend", "Beta", "Size", "RSI", "VWAP distance", "Earnings yield", "Short interest"];
   var START_CASH = 100000;
   var COMMISSION_PER_SHARE = 0.005, COMMISSION_MIN = 1, SEC_FEE = 0.0000278;
+  var SAMPLES_PER_DAY = 13;      // one equity sample every 6 bars (30 minutes)
 
   function Genome(w, p) { this.w = w; this.p = p; }
   Genome.random = function (r) {
     var w = new Float32Array(NW), p = new Float32Array(PARAMS.length);
-    for (var i = 0; i < NW; i++) w[i] = r.normal() * (i < NF * H ? 0.6 : 0.5);
+    for (var i = 0; i < NW; i++) w[i] = r.normal() * (i < NF * H ? 0.55 : 0.5);
     for (i = 0; i < p.length; i++) p[i] = r.next();
     return new Genome(w, p);
   };
@@ -40,6 +45,18 @@
   };
   Genome.prototype.toJSON = function () {
     return { w: Array.prototype.map.call(this.w, function (x) { return +x.toFixed(4); }), p: Array.prototype.map.call(this.p, function (x) { return +x.toFixed(4); }) };
+  };
+  Genome.distance = function (a, b) {
+    var s = 0; for (var i = 0; i < NW; i++) { var d = a.w[i] - b.w[i]; s += d * d; }
+    return Math.sqrt(s / NW);
+  };
+  /* Relative weight the network puts on each input feature (sums to 1). */
+  Genome.prototype.importance = function () {
+    var imp = new Float64Array(NF), tot = 0, i, h;
+    for (i = 0; i < NF; i++) for (h = 0; h < H; h++) imp[i] += Math.abs(this.w[i * H + h] * this.w[NF * H + H + h]);
+    for (i = 0; i < NF; i++) tot += imp[i];
+    for (i = 0; i < NF; i++) imp[i] = tot > 0 ? imp[i] / tot : 0;
+    return imp;
   };
 
   function decode(p) {
@@ -78,28 +95,30 @@
 
   Bot.prototype.reset = function () {
     this.cash = START_CASH;
-    this.pos = Object.create(null);  // symbol index -> {q, avg, day, peak, trough}
+    this.pos = Object.create(null);  // symbol index -> position
     this.nPos = 0;
     this.trades = [];
+    this.roundTrips = [];
     this.equityCurve = [START_CASH];
     this.intraCurve = [START_CASH];
+    this.idxCurve = [];
+    this.expCurve = [];               // [gross/equity, net/equity] per sample
     this.equity = START_CASH;
     this.peakEquity = START_CASH;
     this.maxDD = 0;
-    this.fees = 0;
+    this.fees = 0; this.borrowCost = 0; this.divIncome = 0; this.turnover = 0;
     this.closed = 0; this.wins = 0; this.grossWin = 0; this.grossLoss = 0; this.holdDays = 0;
     this.bestTrade = 0; this.worstTrade = 0;
     this.marginCalls = 0;
+    this.secPnl = Object.create(null); this.symPnl = Object.create(null); this.symTrades = Object.create(null);
+    this.day0 = { trades: 0, realized: 0, fees: 0, div: 0, buys: 0, sells: 0, notional: 0 };
   };
 
   function styleOf(g) {
-    var imp = new Float64Array(NF), i, h;
-    for (i = 0; i < NF; i++) for (h = 0; h < H; h++) imp[i] += Math.abs(g.w[i * H + h] * g.w[NF * H + H + h]);
-    var best = 0, sign = 0;
-    for (i = 1; i < NF; i++) if (imp[i] > imp[best]) best = i;
+    var imp = g.importance(), best = 0, sign = 0, h;
+    for (var i = 1; i < NF; i++) if (imp[i] > imp[best]) best = i;
     for (h = 0; h < H; h++) sign += g.w[best * H + h] * g.w[NF * H + H + h];
-    var nm = FEATURE_NAMES[best];
-    return (sign >= 0 ? "" : "Contra ") + nm;
+    return (sign >= 0 ? "" : "Contra ") + FEATURE_NAMES[best];
   }
 
   Bot.prototype.score = function (m, i) {
@@ -113,17 +132,35 @@
   };
 
   Bot.prototype.markEquity = function (m) {
-    var e = this.cash, gross = 0;
-    for (var k in this.pos) { var p = this.pos[k], v = p.q * m.price[k]; e += v; gross += Math.abs(v); }
+    var e = this.cash, gross = 0, net = 0;
+    for (var k in this.pos) { var p = this.pos[k], v = p.q * m.price[k]; e += v; gross += Math.abs(v); net += v; }
     this.equity = e;
-    this.gross = gross;
+    this.gross = gross; this.net = net;
     if (e > this.peakEquity) this.peakEquity = e;
     var dd = 1 - e / this.peakEquity;
     if (dd > this.maxDD) this.maxDD = dd;
     return e;
   };
 
-  Bot.prototype.fill = function (m, i, qty, reason) {   // qty > 0 buy, < 0 sell
+  Bot.prototype.bookTrip = function (m, i, p, px, qty, pnl, reason) {
+    var long = p.q > 0, ret = (px / p.avg - 1) * (long ? 1 : -1);
+    var mfe = long ? p.peak / p.avg - 1 : 1 - p.trough / p.avg;
+    var mae = long ? p.trough / p.avg - 1 : 1 - p.peak / p.avg;
+    this.closed++; if (pnl > 0) { this.wins++; this.grossWin += pnl; } else this.grossLoss -= pnl;
+    if (ret > this.bestTrade) this.bestTrade = ret;
+    if (ret < this.worstTrade) this.worstTrade = ret;
+    this.holdDays += m.day - p.day;
+    var sec = T.SECTORS[m.sector[i]], sym = m.sym[i];
+    this.secPnl[sec] = (this.secPnl[sec] || 0) + pnl;
+    this.symPnl[sym] = (this.symPnl[sym] || 0) + pnl;
+    this.day0.realized += pnl;
+    this.roundTrips.push({ sym: sym, sector: sec, side: long ? "LONG" : "SHORT", qty: qty, entryDay: p.day, entryBar: p.bar, entryPx: p.avg,
+      exitDay: m.day, exitBar: m.bar, exitPx: px, pnl: pnl, ret: ret, holdBars: m.gBar - p.gBar, mfe: mfe, mae: mae,
+      entryScore: p.score, entryReason: p.why, exitReason: reason, regimeIn: p.regime, regimeOut: m.REGIMES[m.regime].name,
+      fees: p.fees, entryRsi: p.rsi });
+  };
+
+  Bot.prototype.fill = function (m, i, qty, reason, score) {   // qty > 0 buy, < 0 sell
     if (qty === 0 || m.isHalted(i)) return false;
     var q = m.quote(i), dv = Math.max(m.avgVol[i] / m.BARS_PER_DAY, 100);
     var impact = 0.1 * Math.sqrt(Math.abs(qty) / dv) * Math.sqrt(Math.max(m.ewVar[i], 1e-6));
@@ -132,27 +169,30 @@
     var fee = Math.max(COMMISSION_MIN, Math.abs(qty) * COMMISSION_PER_SHARE) + (qty < 0 ? notional * SEC_FEE : 0);
     if (qty > 0 && this.cash < notional + fee && !(this.pos[i] && this.pos[i].q < 0)) return false;
     this.cash -= qty * px + fee;
-    this.fees += fee;
+    this.fees += fee; this.turnover += notional;
+    this.day0.trades++; this.day0.fees += fee; this.day0.notional += notional;
+    if (qty > 0) this.day0.buys++; else this.day0.sells++;
+    var sym = m.sym[i];
+    this.symTrades[sym] = (this.symTrades[sym] || 0) + 1;
     var p = this.pos[i], realized = null;
     if (!p) {
-      this.pos[i] = { q: qty, avg: px, day: m.day, peak: px, trough: px };
+      this.pos[i] = { q: qty, avg: px, day: m.day, bar: m.bar, gBar: m.gBar, peak: px, trough: px, score: score === undefined ? null : score,
+        why: reason, regime: m.REGIMES[m.regime].name, fees: fee, rsi: Math.round(m.rsi(i) * 10) / 10 };
       this.nPos++;
     } else if ((p.q > 0) === (qty > 0)) {
-      p.avg = (p.avg * p.q + px * qty) / (p.q + qty); p.q += qty;
+      p.avg = (p.avg * p.q + px * qty) / (p.q + qty); p.q += qty; p.fees += fee;
     } else {
       var closeQ = Math.min(Math.abs(qty), Math.abs(p.q));
       realized = (px - p.avg) * closeQ * (p.q > 0 ? 1 : -1) - fee;
-      var retPct = (px / p.avg - 1) * (p.q > 0 ? 1 : -1);
-      this.closed++; if (realized > 0) { this.wins++; this.grossWin += realized; } else this.grossLoss -= realized;
-      if (retPct > this.bestTrade) this.bestTrade = retPct;
-      if (retPct < this.worstTrade) this.worstTrade = retPct;
-      this.holdDays += m.day - p.day;
+      p.fees += fee;
+      this.bookTrip(m, i, p, px, closeQ, realized, reason);
       p.q += qty;
       if (Math.abs(p.q) < 1e-9) { delete this.pos[i]; this.nPos--; }
-      else if ((p.q > 0) !== (p.q - qty > 0)) { p.avg = px; p.day = m.day; p.peak = px; p.trough = px; }
     }
-    this.trades.push({ day: m.day, bar: m.bar, sym: m.sym[i], side: qty > 0 ? (realized !== null ? "COVER" : "BUY") : (realized !== null ? "SELL" : "SHORT"),
-      qty: Math.abs(qty), px: px, fee: fee, pnl: realized, reason: reason });
+    this.trades.push({ day: m.day, bar: m.bar, sym: sym, sector: T.SECTORS[m.sector[i]],
+      side: qty > 0 ? (realized !== null ? "COVER" : "BUY") : (realized !== null ? "SELL" : "SHORT"),
+      qty: Math.abs(qty), px: px, mid: m.price[i], spreadBps: q.spread * 1e4, impactBps: impact * 1e4, notional: notional,
+      fee: fee, pnl: realized, reason: reason, score: score === undefined ? null : score, cashAfter: this.cash });
     return true;
   };
 
@@ -163,11 +203,28 @@
         // halted at the bell: settle at last price so results are comparable across bots
         var px = m.price[k], pnl = (px - p.avg) * p.q;
         this.cash += p.q * px;
-        this.closed++; if (pnl > 0) { this.wins++; this.grossWin += pnl; } else this.grossLoss -= pnl;
-        this.trades.push({ day: m.day, bar: m.bar, sym: m.sym[k], side: p.q > 0 ? "SELL" : "COVER", qty: Math.abs(p.q), px: px, fee: 0, pnl: pnl, reason: reason + " (halted, marked)" });
+        this.bookTrip(m, +k, p, px, Math.abs(p.q), pnl, reason + " (halted, marked)");
+        this.trades.push({ day: m.day, bar: m.bar, sym: m.sym[k], sector: T.SECTORS[m.sector[k]], side: p.q > 0 ? "SELL" : "COVER", qty: Math.abs(p.q),
+          px: px, mid: px, spreadBps: 0, impactBps: 0, notional: Math.abs(p.q) * px, fee: 0, pnl: pnl, reason: reason + " (halted, marked)", score: null, cashAfter: this.cash });
         delete this.pos[k]; this.nPos--;
       }
     }
+  };
+
+  Bot.prototype.onDividend = function (i, amount) {
+    var p = this.pos[i];
+    if (!p) return;
+    var cash = p.q * amount;               // shorts pay the dividend to the lender
+    this.cash += cash; this.divIncome += cash; this.day0.div += cash;
+  };
+
+  Bot.prototype.onSplit = function (m, i, f) {
+    var p = this.pos[i];
+    if (!p) return;
+    var newQ = p.q / f, whole = newQ > 0 ? Math.floor(newQ) : Math.ceil(newQ);
+    this.cash += (newQ - whole) * m.price[i];  // cash in lieu of fractional shares
+    p.avg *= f; p.peak *= f; p.trough *= f; p.q = whole;
+    if (whole === 0) { delete this.pos[i]; this.nPos--; }
   };
 
   /* Called every bar. Returns true if the bot acted. */
@@ -177,13 +234,13 @@
     // margin: liquidate if equity falls below 30% of gross exposure
     if (this.gross > 0 && e < 0.3 * this.gross) { this.marginCalls++; this.closeAll(m, "margin call"); return true; }
 
-    // risk exits run every bar
+    // track excursions and run risk exits every bar
     for (var k in this.pos) {
       var p = this.pos[k], px = m.price[k], long = p.q > 0;
-      if (long) { if (px > p.peak) p.peak = px; } else if (px < p.trough) p.trough = px;
+      if (px > p.peak) p.peak = px;
+      if (px < p.trough) p.trough = px;
       var ret = long ? px / p.avg - 1 : 1 - px / p.avg;
-      var ref = long ? p.peak : p.trough;
-      var fromRef = long ? px / ref - 1 : 1 - px / ref;
+      var fromRef = long ? px / p.peak - 1 : 1 - px / p.trough;
       var reason = null;
       if (ret <= -c.stopLoss) reason = "stop loss";
       else if (c.trail && ret > c.stopLoss && fromRef <= -c.stopLoss) reason = "trailing stop";
@@ -192,7 +249,10 @@
       if (reason) this.fill(m, +k, -p.q, reason);
     }
 
-    if (m.gBar % 6 === 0) { this.intraCurve.push(e); if (this.intraCurve.length > 4000) this.intraCurve.splice(1, 1); }
+    if (m.gBar % 6 === 0) {
+      this.intraCurve.push(e); this.idxCurve.push(m.index);
+      this.expCurve.push(e > 0 ? this.gross / e : 0, e > 0 ? this.net / e : 0);
+    }
     if ((m.gBar + this.offset) % c.interval !== 0) return false;
 
     // re-score holdings, exit if the signal turned
@@ -227,52 +287,114 @@
       // never take more than 5% of a bar's typical volume
       qty = Math.min(qty, Math.floor(m.avgVol[pick[1]] / m.BARS_PER_DAY * 0.05));
       if (qty < 1 || alloc < 500) { if (!takeShort) break; else continue; }
-      if (this.fill(m, pick[1], takeShort ? -qty : qty, takeShort ? "short signal" : "buy signal")) { slots--; this.gross += qty * price; }
+      if (this.fill(m, pick[1], takeShort ? -qty : qty, takeShort ? "short signal" : "buy signal", Math.round(pick[0] * 1000) / 1000)) { slots--; this.gross += qty * price; }
     }
     return true;
   };
 
+  /* Close of a session: charge borrow, mark, and hand back that day's ledger. */
   Bot.prototype.endOfDay = function (m) {
-    // borrow cost on shorts (2%/yr large caps, up to 25%/yr small caps)
+    var borrow = 0;
     for (var k in this.pos) {
       var p = this.pos[k];
       if (p.q < 0) {
         var rate = 0.02 + 0.23 * Math.max(0, 1 - Math.log10(m.mcap0[k] + 1) / 4);
         var fee = -p.q * m.price[k] * rate / 252;
-        this.cash -= fee; this.fees += fee;
+        this.cash -= fee; this.fees += fee; borrow += fee;
       }
     }
+    this.borrowCost += borrow;
+    var prev = this.equityCurve[this.equityCurve.length - 1];
     var e = this.markEquity(m);
     this.equityCurve.push(e);
+    var d = this.day0;
+    var ledger = { equity: e, cash: this.cash, dailyPnl: e - prev, dailyReturn: prev ? e / prev - 1 : 0, positions: this.nPos,
+      grossExposure: e > 0 ? this.gross / e : 0, netExposure: e > 0 ? this.net / e : 0, trades: d.trades, buys: d.buys, sells: d.sells,
+      notional: d.notional, realizedPnl: d.realized, fees: d.fees + borrow, borrowCost: borrow, dividends: d.div,
+      drawdown: 1 - e / this.peakEquity };
+    this.day0 = { trades: 0, realized: 0, fees: 0, div: 0, buys: 0, sells: 0, notional: 0 };
+    return ledger;
   };
 
+  function moments(a) {
+    var n = a.length, mu = 0, i;
+    for (i = 0; i < n; i++) mu += a[i];
+    mu /= Math.max(n, 1);
+    var v = 0, s3 = 0, s4 = 0;
+    for (i = 0; i < n; i++) { var d = a[i] - mu; v += d * d; s3 += d * d * d; s4 += d * d * d * d; }
+    var varr = v / Math.max(n - 1, 1), sd = Math.sqrt(varr);
+    return { mean: mu, sd: sd, skew: sd > 0 && n > 2 ? (s3 / n) / Math.pow(sd, 3) : 0, kurt: sd > 0 && n > 3 ? (s4 / n) / (varr * varr) - 3 : 0 };
+  }
+
   Bot.prototype.stats = function () {
-    // Sharpe from 30-minute equity samples (13 per session), annualized
-    var ec = this.intraCurve.concat([this.equity]), rets = [], i;
-    for (i = 1; i < ec.length; i++) rets.push(ec[i] / ec[i - 1] - 1);
-    var mean = 0; for (i = 0; i < rets.length; i++) mean += rets[i]; mean /= Math.max(rets.length, 1);
-    var v = 0; for (i = 0; i < rets.length; i++) v += (rets[i] - mean) * (rets[i] - mean); v /= Math.max(rets.length - 1, 1);
-    var sd = Math.sqrt(v);
+    var ec = this.intraCurve.concat([this.equity]), ic = this.idxCurve, r = [], x = [], i;
+    for (i = 1; i < ec.length; i++) {
+      r.push(ec[i] / ec[i - 1] - 1);
+      if (i < ic.length) x.push(ic[i] / ic[i - 1] - 1);
+    }
+    var mr = moments(r), ann = Math.sqrt(252 * SAMPLES_PER_DAY);
+    var down = r.filter(function (v) { return v < 0; });
+    var dd = Math.sqrt(down.reduce(function (a, v) { return a + v * v; }, 0) / Math.max(r.length, 1));
+    // regression on the index (alpha / beta)
+    var nx = Math.min(r.length, x.length), mx = 0, my = 0;
+    for (i = 0; i < nx; i++) { mx += x[i]; my += r[i]; }
+    mx /= Math.max(nx, 1); my /= Math.max(nx, 1);
+    var sxy = 0, sxx = 0, syy = 0;
+    for (i = 0; i < nx; i++) { sxy += (x[i] - mx) * (r[i] - my); sxx += (x[i] - mx) * (x[i] - mx); syy += (r[i] - my) * (r[i] - my); }
+    var beta = sxx > 0 ? sxy / sxx : 0, corr = sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : 0;
+    var te = []; for (i = 0; i < nx; i++) te.push(r[i] - x[i]);
+    var mte = moments(te);
+    // drawdown duration (in samples)
+    var peak = ec[0], ddRun = 0, ddMax = 0;
+    for (i = 0; i < ec.length; i++) { if (ec[i] >= peak) { peak = ec[i]; ddRun = 0; } else { ddRun++; if (ddRun > ddMax) ddMax = ddRun; } }
+    // VaR / CVaR from 30-minute returns, scaled to one day
+    var sorted = r.slice().sort(function (a, b) { return a - b; }), k5 = Math.max(0, Math.floor(sorted.length * 0.05) - 1);
+    var var95 = sorted.length ? -sorted[k5] * Math.sqrt(SAMPLES_PER_DAY) : 0;
+    var tail = sorted.slice(0, k5 + 1), cvar95 = tail.length ? -tail.reduce(function (a, v) { return a + v; }, 0) / tail.length * Math.sqrt(SAMPLES_PER_DAY) : 0;
+    // round trips
+    var rt = this.roundTrips, wins = rt.filter(function (t) { return t.pnl > 0; }), losses = rt.filter(function (t) { return t.pnl <= 0; });
+    var longs = rt.filter(function (t) { return t.side === "LONG"; }), shorts = rt.filter(function (t) { return t.side === "SHORT"; });
+    var sum = function (a, f) { return a.reduce(function (s, t) { return s + f(t); }, 0); };
+    var avg = function (a, f) { return a.length ? sum(a, f) / a.length : 0; };
+    var cw = 0, cl = 0, mcw = 0, mcl = 0;
+    rt.forEach(function (t) { if (t.pnl > 0) { cw++; cl = 0; } else { cl++; cw = 0; } if (cw > mcw) mcw = cw; if (cl > mcl) mcl = cl; });
+    var gExp = 0, nExp = 0, ne = this.expCurve.length / 2;
+    for (i = 0; i < this.expCurve.length; i += 2) { gExp += this.expCurve[i]; nExp += this.expCurve[i + 1]; }
+    var days = Math.max(1, this.equityCurve.length - 1), ret = this.equity / START_CASH - 1;
+    var annRet = Math.pow(Math.max(1e-9, 1 + ret), 252 / days) - 1;
+    var best = function (obj, dir) { var bk = "", bv = dir > 0 ? -Infinity : Infinity; for (var k in obj) if ((dir > 0 && obj[k] > bv) || (dir < 0 && obj[k] < bv)) { bv = obj[k]; bk = k; } return bk ? bk + " (" + (bv >= 0 ? "+" : "") + bv.toFixed(0) + ")" : ""; };
+    var avgWin = avg(wins, function (t) { return t.pnl; }), avgLoss = avg(losses, function (t) { return t.pnl; });
+    var mfe = avg(rt, function (t) { return t.mfe; }), mae = avg(rt, function (t) { return t.mae; });
+    var idxRet = ic.length > 1 ? ic[ic.length - 1] / ic[0] - 1 : 0;
     return {
-      ret: this.equity / START_CASH - 1,
-      pnl: this.equity - START_CASH,
-      equity: this.equity,
-      maxDD: this.maxDD,
-      sharpe: sd > 0 ? mean / sd * Math.sqrt(252 * 13) : 0,
-      trades: this.trades.length,
-      closed: this.closed,
-      winRate: this.closed ? this.wins / this.closed : 0,
+      ret: ret, pnl: this.equity - START_CASH, equity: this.equity, annReturn: annRet, days: days,
+      volatility: mr.sd * ann, sharpe: mr.sd > 0 ? mr.mean / mr.sd * ann : 0, sortino: dd > 0 ? mr.mean / dd * ann : 0,
+      calmar: this.maxDD > 0 ? annRet / this.maxDD : 0, maxDD: this.maxDD, ddDurationDays: ddMax / SAMPLES_PER_DAY,
+      beta: beta, alpha: (my - beta * mx) * 252 * SAMPLES_PER_DAY, correlation: corr, rSquared: corr * corr,
+      trackingError: mte.sd * ann, infoRatio: mte.sd > 0 ? mte.mean / mte.sd * ann : 0, excessVsIndex: ret - idxRet,
+      var95: var95, cvar95: cvar95, skew: mr.skew, kurtosis: mr.kurt,
+      trades: this.trades.length, closed: rt.length, winRate: rt.length ? wins.length / rt.length : 0,
       profitFactor: this.grossLoss > 0 ? this.grossWin / this.grossLoss : (this.grossWin > 0 ? 99 : 0),
-      avgHold: this.closed ? this.holdDays / this.closed : 0,
-      fees: this.fees,
-      bestTrade: this.bestTrade,
-      worstTrade: this.worstTrade,
-      marginCalls: this.marginCalls
+      expectancy: avg(rt, function (t) { return t.pnl; }), avgWin: avgWin, avgLoss: avgLoss, payoff: avgLoss < 0 ? avgWin / -avgLoss : 0,
+      largestWin: rt.length ? Math.max.apply(null, rt.map(function (t) { return t.pnl; })) : 0,
+      largestLoss: rt.length ? Math.min.apply(null, rt.map(function (t) { return t.pnl; })) : 0,
+      avgTripReturn: avg(rt, function (t) { return t.ret; }), avgHold: this.closed ? this.holdDays / this.closed : 0,
+      avgHoldBars: avg(rt, function (t) { return t.holdBars; }), avgMFE: mfe, avgMAE: mae, edgeRatio: mae < 0 ? mfe / -mae : 0,
+      maxConsecWins: mcw, maxConsecLosses: mcl,
+      longTrips: longs.length, shortTrips: shorts.length, longPnl: sum(longs, function (t) { return t.pnl; }), shortPnl: sum(shorts, function (t) { return t.pnl; }),
+      longWinRate: longs.length ? longs.filter(function (t) { return t.pnl > 0; }).length / longs.length : 0,
+      shortWinRate: shorts.length ? shorts.filter(function (t) { return t.pnl > 0; }).length / shorts.length : 0,
+      avgGrossExposure: ne ? gExp / ne : 0, avgNetExposure: ne ? nExp / ne : 0, turnover: this.turnover / START_CASH,
+      fees: this.fees, borrowCost: this.borrowCost, dividends: this.divIncome,
+      feeDrag: this.turnover > 0 ? this.fees / START_CASH : 0,
+      bestTrade: this.bestTrade, worstTrade: this.worstTrade, marginCalls: this.marginCalls,
+      symbolsTraded: Object.keys(this.symTrades).length, bestSector: best(this.secPnl, 1), worstSector: best(this.secPnl, -1),
+      bestSymbol: best(this.symPnl, 1), worstSymbol: best(this.symPnl, -1)
     };
   };
 
   T.Genome = Genome;
   T.Bot = Bot;
   T.decodeGenes = decode;
-  T.BOT_CONST = { NF: NF, H: H, NW: NW, PARAMS: PARAMS, FEATURE_NAMES: FEATURE_NAMES, START_CASH: START_CASH };
+  T.BOT_CONST = { NF: NF, H: H, NW: NW, PARAMS: PARAMS, FEATURE_NAMES: FEATURE_NAMES, START_CASH: START_CASH, SAMPLES_PER_DAY: SAMPLES_PER_DAY };
 })(window.T = window.T || {});

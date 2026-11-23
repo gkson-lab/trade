@@ -8,7 +8,10 @@
     "market-stats": "node tests/market_stats.js 250",
     "run": "node cli.js",
     "serve": "python3 -m http.server 8080",
-    "symbols": "python3 tools/build_symbols.py"
+    "symbols": "python3 tools/build_symbols.py",
+    "forever": "node cli.js --forever",
+    "combine": "node tools/combine.js",
+    "watch-updates": "node tools/check-updates.js"
   },
   "license": "MIT"
 }

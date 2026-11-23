@@ -148,9 +148,11 @@
   News.prototype.earnings = function (i) {
     var r = this.rng, c = this.companyInfo(i), m = this.m;
     var surprise = Math.max(-3, Math.min(3, r.studentT(5) * 0.7 + m.earningsBias[i]));
-    var lossMaker = c.mcap < 2000 && (T.hashStr("l" + c.sym) % 100) < 55;
-    var estEps = lossMaker ? -c.price * r.range(0.01, 0.06) : Math.max(0.03, c.price / r.range(14, 40) / 4);
+    var q4 = m.eps[i] / 4;                                   // consensus anchors on trailing EPS with some growth
+    var estEps = q4 * (1 + 0.02 * r.normal()) + Math.abs(q4) * 0.02;
+    if (Math.abs(estEps) < 0.01) estEps = estEps < 0 ? -0.01 : 0.01;
     var eps = estEps + Math.abs(estEps) * surprise * 0.12;
+    m.eps[i] = m.eps[i] - q4 + eps;                          // roll trailing-twelve-month EPS
     var rev = c.mcap / r.range(3, 9) / 4;
     var dailyVol = m.idioVol[i] / Math.sqrt(252);
     var impact = (surprise * 1.4 + r.normal() * 0.6) * dailyVol * 2.0;
@@ -160,7 +162,7 @@
     var h = c.name + " (" + c.sym + ") " + qtr + verdict + "EPS " + money(eps) + " vs " + money(estEps) + " est; revenue $" +
       (rev >= 1000 ? fmt(rev / 1000, 2) + "B" : rev >= 10 ? fmt(rev, 0) + "M" : fmt(rev, 1) + "M") +
       (surprise > 1 ? ", raises guidance" : surprise < -1 ? ", cuts guidance" : "");
-    return this.item("stock", i, "earnings", h, impact, { drift: impact * 0.02, vol: 2.5 });
+    return this.item("stock", i, "earnings", h, impact, { drift: impact * 0.02, vol: 2.5, epsActual: +eps.toFixed(4), epsEstimate: +estEps.toFixed(4), surprisePct: +(surprise * 12).toFixed(2) });
   };
 
   News.prototype.companyEvent = function (i) {

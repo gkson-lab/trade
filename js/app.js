@@ -14,7 +14,7 @@
   var S = {
     sim: null, running: false, speed: 15, sel: -1, tf: "5m", filter: "all", sector: -1, query: "",
     feed: "news", acc: 0, lastT: 0, lastList: 0, lastMinis: 0, minis: [], newsSeen: 0, filtered: [], heldCount: null,
-    tradeSeen: {}, cfg: { mult: 1, generations: 6, daysPerGen: 10, seed: 20270104, fitness: "return" }, dirtyBots: true
+    tradeSeen: {}, cfg: { mult: 1, generations: 6, daysPerGen: 10, seed: 20270104, fitness: "return", detailBudget: 1500000 }, dirtyBots: true
   };
 
   var chart = new T.CandleChart($("mainChart"));
@@ -28,7 +28,7 @@
     clear($("feedNews")); clear($("feedTrades"));
     S.sim.on(onSimEvent);
     S.sim.market.on(function (t, d) { if (t === "regime") setStatus("Regime change: " + d + " market."); });
-    $("genTotal").textContent = cfg.generations;
+    $("genTotal").textContent = S.sim.forever ? "∞" : cfg.generations;
     $("genDays").textContent = cfg.daysPerGen;
     $("symCount").textContent = S.sim.market.n.toLocaleString() + " symbols";
     refilter();
@@ -39,9 +39,11 @@
 
   function onSimEvent(type, d) {
     if (type === "generation") {
-      var s = d.summary, next = d.final ? " Run complete." : " Breeding generation " + (s.gen + 1) + ": " + S.sim.expectedSize(s.gen + 1) + " bots.";
+      var s = d.summary, next = d.final || S.sim.stopRequested ? " Run complete." : " Breeding generation " + (s.gen + 1) + ": " + S.sim.expectedSize(s.gen + 1) + " bots.";
       setStatus("Generation " + s.gen + " finished. Avg " + pct(s.avgReturn) + ", best " + s.bestBot + " " + pct(s.bestReturn) + ", SIM 500 " + pct(s.indexReturn) + "." + next);
-      S.dirtyBots = true;
+      S.dirtyBots = true; S.tradeSeen = {};
+    } else if (type === "trimmed") {
+      S.trimmed = d;
     } else if (type === "done") {
       S.running = false; setPlay();
       renderAll(true);
@@ -52,6 +54,7 @@
   function setStatus(t) { $("status").textContent = t; }
   function setPlay() {
     var b = $("btnPlay");
+    $("btnFinish").disabled = !S.sim || S.sim.done;
     if (S.sim && S.sim.done) { b.textContent = "Report"; b.setAttribute("aria-label", "Open run report"); return; }
     b.textContent = S.running ? "Pause" : (S.sim && S.sim.market.gBar > 0 ? "Resume" : "Start");
     b.setAttribute("aria-label", S.running ? "Pause simulation" : "Start simulation");
@@ -95,11 +98,12 @@
   function renderTop() {
     var m = S.sim.market, ch = m.indexChangePct();
     $("idxVal").textContent = T.fmtPrice(m.index);
+    $("vixVal").textContent = m.vix().toFixed(2);
     var c = $("idxChg"); c.textContent = pct(ch); c.className = "num chg " + cls(ch);
     var rg = $("regime"); rg.textContent = m.REGIMES[m.regime].name; rg.className = "badge " + m.REGIMES[m.regime].name;
     $("clockDate").textContent = m.dateStr(m.day);
     $("clockTime").textContent = m.bar === 0 && m.gBar > 0 ? "Pre-open" : m.clockStr();
-    $("genNum").textContent = S.sim.gen;
+    $("genNum").textContent = S.sim.gen + (S.sim.stopRequested && !S.sim.done ? " (last)" : "");
     $("genDay").textContent = Math.min(S.sim.genDay + 1, S.sim.cfg.daysPerGen);
     var prog = (S.sim.genDay * m.BARS_PER_DAY + m.bar) / (S.sim.cfg.daysPerGen * m.BARS_PER_DAY);
     $("genProgress").style.width = (S.sim.done ? 100 : prog * 100).toFixed(1) + "%";
@@ -130,6 +134,23 @@
     var c = $("csChg"); c.textContent = pct(chg); c.className = "num " + cls(chg);
     $("csHigh").textContent = T.fmtPrice(hi); $("csLow").textContent = T.fmtPrice(lo);
     $("csVol").textContent = i < 0 ? "$" + T.fmtVol(vol) : T.fmtVol(vol);
+    var f = function (id, v) { $(id).textContent = v; };
+    if (i < 0) {
+      $("fundRow").hidden = true;
+    } else {
+      $("fundRow").hidden = false;
+      var pe = m.pe(i), rsi = m.rsi(i);
+      f("fCap", "$" + T.fmtVol(m.marketCap(i)));
+      f("fPE", pe === null ? "n/m (loss)" : pe.toFixed(1));
+      f("fEPS", (m.eps[i] < 0 ? "−$" : "$") + Math.abs(m.eps[i]).toFixed(2));
+      f("fDiv", m.divYield[i] > 0 ? (m.divYield[i] * 100).toFixed(2) + "%" : "None");
+      f("fSI", (m.shortInt[i] * 100).toFixed(1) + "%");
+      f("fRSI", rsi.toFixed(1) + (rsi >= 70 ? " overbought" : rsi <= 30 ? " oversold" : ""));
+      f("fATR", (m.atrPct[i] * 100).toFixed(2) + "%");
+      f("fVWAP", T.fmtPrice(m.vwap(i)));
+      f("fRange", T.fmtPrice(m.loRange[i]) + " – " + T.fmtPrice(m.hiRange[i]));
+      f("fBeta", m.beta[i].toFixed(2));
+    }
   }
 
   /* ---------- markets list (virtualized) ---------- */
@@ -290,11 +311,21 @@
       (b.age ? ". Survived " + b.age + " breeding round" + (b.age > 1 ? "s" : "") : "") + ".");
     body.appendChild(meta);
     var k = el("div", "kpis");
-    [["P/L", signed$(s.pnl)], ["Return", pct(s.ret)], ["Max drawdown", pct(-s.maxDD)], ["Sharpe", s.sharpe.toFixed(2)],
-      ["Win rate", (s.winRate * 100).toFixed(1) + "%"], ["Trades", s.trades], ["Fees", money(s.fees)], ["Open positions", b.nPos]].forEach(function (x) {
+    [["P/L", signed$(s.pnl)], ["Return", pct(s.ret)], ["vs SIM 500", pct(s.excessVsIndex)], ["Max drawdown", pct(-s.maxDD)],
+      ["Sharpe", s.sharpe.toFixed(2)], ["Sortino", s.sortino.toFixed(2)], ["Alpha (ann.)", pct(s.alpha, 1)], ["Beta", s.beta.toFixed(2)],
+      ["Volatility (ann.)", (s.volatility * 100).toFixed(1) + "%"], ["1-day VaR 95%", pct(-s.var95)], ["Win rate", (s.winRate * 100).toFixed(1) + "%"],
+      ["Profit factor", s.profitFactor.toFixed(2)], ["Expectancy / trip", signed$(s.expectancy)], ["Avg MFE / MAE", pct(s.avgMFE, 1) + " / " + pct(s.avgMAE, 1)],
+      ["Long / short P/L", signed$(s.longPnl) + " / " + signed$(s.shortPnl)], ["Gross exposure", (s.avgGrossExposure * 100).toFixed(0) + "%"],
+      ["Trades", s.trades], ["Fees", money(s.fees)], ["Dividends", signed$(s.dividends)], ["Open positions", b.nPos]].forEach(function (x) {
       var d = el("div", "kpi"); d.appendChild(el("span", "k", x[0])); d.appendChild(el("span", "v num", String(x[1]))); k.appendChild(d);
     });
     body.appendChild(k);
+    var dl = el("div", "dlg-actions left"), btnB = el("button", "btn", "Download this bot's data (.xlsx)");
+    btnB.type = "button";
+    btnB.addEventListener("click", function () { downloadBot(b.name); });
+    dl.appendChild(btnB);
+    dl.appendChild(el("span", "hint", "Data from finished generations. Best " + (s.bestSector || "n/a") + ", worst " + (s.worstSector || "n/a") + "."));
+    body.appendChild(dl);
     var c = b.cfg;
     body.appendChild(el("h3", null, "Genes"));
     body.appendChild(el("p", "hint", "Buys above score " + c.buyTh.toFixed(2) + ", exits below " + c.sellTh.toFixed(2) + ". Up to " + c.maxPos + " positions at " +
@@ -338,11 +369,12 @@
 
   /* ---------- feeds ---------- */
   function renderFeeds() {
-    var m = S.sim.market, box = $("feedNews"), log = m.newsLog;
-    if (S.newsSeen > log.length) S.newsSeen = 0;
-    var from = Math.max(S.newsSeen, log.length - 80);
-    for (var k = from; k < log.length; k++) {
-      var it = log[k], row = el("div", "news-item " + it.kind);
+    var m = S.sim.market, box = $("feedNews"), log = m.recentNews;
+    if (S.newsSeen > m.newsSeq) S.newsSeen = 0;
+    for (var k = Math.max(0, log.length - 80); k < log.length; k++) {
+      var it = log[k];
+      if (it.seq <= S.newsSeen) continue;
+      var row = el("div", "news-item " + it.kind);
       row.appendChild(el("span", "t num", it.date.slice(5) + " " + it.time.replace(" AM", "a").replace(" PM", "p")));
       if (it.scope === "stock") {
         var sb = el("button", "sym", it.sym); sb.type = "button"; sb._i = it.target;
@@ -350,10 +382,10 @@
         row.appendChild(sb);
       } else row.appendChild(el("span", "sym", it.scope === "sector" ? "Sector" : "Macro"));
       row.appendChild(el("span", "h", it.headline));
-      row.appendChild(el("span", "i num " + cls(it.impact), it.kind === "halt" ? "Halt" : pct(it.impact, 1)));
+      row.appendChild(el("span", "i num " + cls(it.impact), it.kind === "halt" ? "Halt" : it.kind === "split" ? "Split" : it.kind === "dividend" ? "Div" : pct(it.impact, 1)));
       box.insertBefore(row, box.firstChild);
     }
-    S.newsSeen = log.length;
+    S.newsSeen = m.newsSeq;
     while (box.children.length > 150) box.removeChild(box.lastChild);
 
     // trades from every bot in the box
@@ -397,24 +429,30 @@
   function showReport(rep) {
     var sim = S.sim, body = $("reportBody");
     clear(body);
-    body.appendChild(el("p", "hint", sim.log.generations.length + " generations, " + rep.uniqueBots + " unique bots, " + rep.botRuns +
-      " bot-generation runs on " + sim.market.n.toLocaleString() + " symbols. Seed " + rep.config.seed + "."));
+    var gensAll = sim.log.generations, gensShown = gensAll.slice(-60);
+    body.appendChild(el("p", "hint", gensAll.length + " generations" + (sim.done ? "" : " so far (run still going)") + ", " + rep.uniqueBots + " unique bots, " + rep.botRuns +
+      " bot-generation runs, " + rep.tradingDays + " trading days (" + rep.startDate + " to " + rep.endDate + ") on " + sim.market.n.toLocaleString() + " symbols. Seed " + rep.config.seed + "."));
+    if (!gensAll.length) body.appendChild(el("p", "hint", "No generation has finished yet. Tables fill in as each generation ends."));
     var k = el("div", "kpis");
     [["Avg return", pct(rep.avgReturn), rep.avgReturn], ["Avg P/L", signed$(rep.avgPnl), rep.avgPnl], ["Avg win rate", (rep.avgWinRate * 100).toFixed(1) + "%"],
       ["Avg Sharpe", rep.avgSharpe.toFixed(2), rep.avgSharpe], ["Avg max drawdown", pct(-rep.avgMaxDrawdown)], ["SIM 500", pct(rep.indexReturn), rep.indexReturn],
-      ["Gen 1 avg", pct(rep.firstGenAvg), rep.firstGenAvg], ["Final gen avg", pct(rep.lastGenAvg), rep.lastGenAvg]].forEach(function (x) {
+      ["Gen 1 avg", pct(rep.firstGenAvg), rep.firstGenAvg], ["Latest gen avg", pct(rep.lastGenAvg), rep.lastGenAvg],
+      ["Avg Sortino", rep.avgSortino.toFixed(2), rep.avgSortino], ["Avg alpha (ann.)", pct(rep.avgAlpha, 1), rep.avgAlpha],
+      ["Compounded avg bot", pct(rep.cumulativeAvgBot), rep.cumulativeAvgBot], ["Compounded SIM 500", pct(rep.cumulativeIndex), rep.cumulativeIndex],
+      ["Round trips", rep.totalRoundTrips.toLocaleString()], ["Fees paid", money(rep.totalFees)]].forEach(function (x) {
       var d = el("div", "kpi"); d.appendChild(el("span", "k", x[0])); d.appendChild(el("span", "v num " + (x[2] !== undefined ? cls(x[2]) : ""), x[1])); k.appendChild(d);
     });
     body.appendChild(k);
-    body.appendChild(el("h3", null, "Average return by generation"));
+    body.appendChild(el("h3", null, "Average return by generation" + (gensAll.length > gensShown.length ? " (last " + gensShown.length + ")" : "")));
     body.appendChild(el("p", "hint", "Bar: average bot return. Whisker: best to worst bot. Teal tick: SIM 500 over the same days."));
     var cv = el("canvas", "report-chart"); cv.setAttribute("role", "img");
-    cv.setAttribute("aria-label", "Average return per generation: " + sim.log.generations.map(function (g) { return "G" + g.gen + " " + pct(g.avgReturn); }).join(", "));
+    cv.setAttribute("aria-label", "Average return per generation: " + gensShown.map(function (g) { return "G" + g.gen + " " + pct(g.avgReturn); }).join(", "));
     body.appendChild(cv);
-    body.appendChild(table(["Gen", "Bots", "Avg", "Median", "Best", "Worst", "In profit", "Beat index", "Avg Sharpe", "Win rate", "SIM 500"],
-      sim.log.generations.map(function (g) {
+    body.appendChild(table(["Gen", "Bots", "Avg", "Median", "Best", "Worst", "In profit", "Beat index", "Sharpe", "Alpha", "Win rate", "Diversity", "SIM 500", "VIX"],
+      gensShown.slice().reverse().map(function (g, k) {
+        var gen = sim.log.genetics[sim.log.genetics.length - 1 - k] || {};
         return ["G" + g.gen, g.bots, pct(g.avgReturn), pct(g.medianReturn), pct(g.bestReturn), pct(g.worstReturn), g.profitableBots, g.beatIndex,
-          g.avgSharpe.toFixed(2), (g.avgWinRate * 100).toFixed(1) + "%", pct(g.indexReturn), g.avgReturn];
+          g.avgSharpe.toFixed(2), pct(g.avgAlphaAnn, 1), (g.avgWinRate * 100).toFixed(1) + "%", gen.diversity ? gen.diversity.toFixed(3) : "", pct(g.indexReturn), g.avgSimVix.toFixed(1), g.avgReturn];
       }), 2));
     body.appendChild(el("h3", null, "Top 10 bot runs"));
     var top = sim.log.bots.slice().sort(function (a, b) { return b.returnPct - a.returnPct; }).slice(0, 10);
@@ -422,8 +460,12 @@
       top.map(function (b) { return [b.bot, b.gen, b.style, pct(b.returnPct), signed$(b.pnl), pct(-b.maxDrawdown), b.sharpe.toFixed(2), b.trades, (b.winRate * 100).toFixed(1) + "%", b.returnPct]; }), 3));
     var sel = $("csvSel"); clear(sel);
     T.Report.sheets(sim).forEach(function (s) { var o = el("option", null, s[0] + " (" + s[1].length.toLocaleString() + " rows)"); o.value = s[0]; sel.appendChild(o); });
-    $("dlgReport").showModal();
-    requestAnimationFrame(function () { T.genBars(cv, sim.log.generations); });
+    var bs = $("botSel"); clear(bs);
+    sim.profiles().slice().reverse().forEach(function (p) { var o = el("option", null, p.bot + " · " + p.status + (p.compoundedReturn !== "" ? " · " + pct(p.compoundedReturn) : "")); o.value = p.bot; bs.appendChild(o); });
+    $("exportNote").textContent = sim.trimmedThrough ? "Trade-level rows for generations 1-" + sim.trimmedThrough + " were dropped from memory to keep this endless run going. Their summary rows are in every export." :
+      "Everything from every finished generation is in memory and in every export.";
+    if (!$("dlgReport").open) $("dlgReport").showModal();
+    requestAnimationFrame(function () { T.genBars(cv, gensShown); });
   }
 
   function download(name, blob) {
@@ -431,7 +473,15 @@
     document.body.appendChild(a); a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
   }
-  function runName() { var c = S.sim.cfg; return "trade-box-seed" + c.seed + "-x" + c.mult + "-g" + c.generations; }
+  function runName() { var c = S.sim.cfg; return "trade-box-seed" + c.seed + "-x" + c.mult + "-g" + (S.sim.forever ? "inf" : c.generations); }
+  function needX() { if (!window.XLSX) { setStatus("Spreadsheet library still loading. Try again in a moment."); return false; } return true; }
+  var XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  function saveBook(wb, name) { download(name, new Blob([window.XLSX.write(wb, { type: "array", bookType: "xlsx", compression: true })], { type: XLSX_TYPE })); }
+  function busy(btn, fn) {
+    var t = btn.textContent; btn.disabled = true; btn.textContent = "Building…";
+    setTimeout(function () { try { fn(); } catch (e) { setStatus("Export failed: " + e.message); } btn.disabled = false; btn.textContent = t; }, 30);
+  }
+  function downloadBot(name) { if (needX()) saveBook(T.Report.botWorkbook(S.sim, name, window.XLSX), runName() + "-" + name + ".xlsx"); }
 
   /* ---------- panels / events ---------- */
   function showPanel(id) {
@@ -484,27 +534,68 @@
     $("btnNew").addEventListener("click", function () {
       S.running = false; setPlay();
       mult = S.cfg.mult; popText();
-      $("inGens").value = S.cfg.generations; $("inDays").value = S.cfg.daysPerGen; $("inSeed").value = S.cfg.seed; $("inFit").value = S.cfg.fitness;
+      $("inGens").value = S.cfg.generations || 6; $("inForever").checked = !!S.cfg.forever; $("inGens").disabled = !!S.cfg.forever;
+      $("inBudget").value = String(S.cfg.detailBudget || 1500000); $("inDays").value = S.cfg.daysPerGen; $("inSeed").value = S.cfg.seed; $("inFit").value = S.cfg.fitness;
       $("newErr").hidden = true;
       $("dlgNew").showModal();
     });
     $("popDouble").addEventListener("click", function () { if (mult < 512) mult *= 2; popText(); });
     $("popHalf").addEventListener("click", function () { if (mult > 1) mult /= 2; popText(); });
     $("btnCancelNew").addEventListener("click", function () { $("dlgNew").close(); });
+    $("inForever").addEventListener("change", function () { $("inGens").disabled = this.checked; });
     $("formNew").addEventListener("submit", function (e) {
-      var g = +$("inGens").value, d = +$("inDays").value, s = +$("inSeed").value, err = $("newErr");
-      var bad = !(g >= 2 && g <= 200) ? "Generations must be between 2 and 200." : !(d >= 1 && d <= 120) ? "Days per generation must be between 1 and 120." :
+      var forever = $("inForever").checked;
+      var g = forever ? 0 : +$("inGens").value, d = +$("inDays").value, s = +$("inSeed").value, err = $("newErr");
+      var bad = !forever && !(g >= 2 && g <= 100000) ? "Generations must be between 2 and 100,000, or tick Run forever." : !(d >= 1 && d <= 120) ? "Days per generation must be between 1 and 120." :
         !(s >= 1) ? "Seed must be a positive whole number." : "";
       if (bad) { e.preventDefault(); err.textContent = bad; err.hidden = false; return; }
-      build({ mult: mult, generations: Math.round(g), daysPerGen: Math.round(d), seed: Math.round(s), fitness: $("inFit").value });
+      build({ mult: mult, generations: Math.round(g), forever: forever, daysPerGen: Math.round(d), seed: Math.round(s), fitness: $("inFit").value,
+        detailBudget: +$("inBudget").value });
     });
     $("btnCloseBot").addEventListener("click", function () { $("dlgBot").close(); });
     $("btnCloseReport").addEventListener("click", function () { $("dlgReport").close(); });
     $("btnXlsx").addEventListener("click", function () {
-      if (!window.XLSX) { setStatus("Workbook library still loading. Try again in a moment, or use CSV."); return; }
-      var wb = T.Report.workbook(S.sim, window.XLSX);
-      var buf = window.XLSX.write(wb, { type: "array", bookType: "xlsx" });
-      download(runName() + ".xlsx", new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+      if (needX()) busy(this, function () { saveBook(T.Report.master(S.sim, window.XLSX), runName() + "-all-generations.xlsx"); });
+    });
+    $("btnGenZip").addEventListener("click", function () {
+      if (needX()) busy(this, function () { download(runName() + "-generations.zip", new Blob([T.Report.generationsZip(S.sim, window.XLSX)], { type: "application/zip" })); });
+    });
+    $("btnBotZip").addEventListener("click", function () {
+      if (needX()) busy(this, function () { download(runName() + "-bots.zip", new Blob([T.Report.botsZip(S.sim, window.XLSX)], { type: "application/zip" })); });
+    });
+    $("btnBotBook").addEventListener("click", function () {
+      if (needX()) busy(this, function () { saveBook(T.Report.perBotWorkbook(S.sim, window.XLSX), runName() + "-bot-ledgers.xlsx"); });
+    });
+    $("btnOneBot").addEventListener("click", function () { var n = $("botSel").value; if (n) busy(this, function () { downloadBot(n); }); });
+    $("btnCombine").addEventListener("click", function () {
+      var files = Array.prototype.slice.call($("combineFiles").files), err = $("combineErr"), btn = this;
+      err.hidden = true;
+      if (!files.length) { err.textContent = "Choose one or more .csv or .zip files first."; err.hidden = false; return; }
+      if (!needX()) return;
+      btn.disabled = true; btn.textContent = "Combining…";
+      Promise.all(files.map(function (f) {
+        return /\.zip$/i.test(f.name) ? f.arrayBuffer().then(function (b) { var fs = T.Report.unzip(window.XLSX, new Uint8Array(b)), gens = fs.filter(function (x) { return /gen-\d+\//.test(x.name); });
+          return gens.length ? gens : fs; })
+          : f.text().then(function (t) { return [{ name: f.name, text: t }]; });
+      })).then(function (lists) {
+        var all = [].concat.apply([], lists);
+        if (!all.length) throw new Error("No CSV files found in that selection.");
+        var res = T.Report.combine(all, window.XLSX);
+        saveBook(res.workbook, "trade-box-combined.xlsx");
+        setStatus("Combined " + all.length + " CSV files into " + res.sheets + " sheets (" + res.rows.toLocaleString() + " rows).");
+      }).catch(function (e) { err.textContent = e.message; err.hidden = false; })
+        .then(function () { btn.disabled = false; btn.textContent = "Combine and download .xlsx"; });
+    });
+    $("btnData").addEventListener("click", function () { showReport(S.sim.report()); });
+    $("btnFinish").addEventListener("click", function () { if (!S.sim.done) $("dlgFinish").showModal(); });
+    $("btnCancelFinish").addEventListener("click", function () { $("dlgFinish").close(); });
+    $("btnStopAfter").addEventListener("click", function () {
+      S.sim.stop(); $("dlgFinish").close();
+      setStatus("The run will finish when generation " + S.sim.gen + " ends.");
+      if (!S.running) { S.running = true; S.lastT = 0; setPlay(); }
+    });
+    $("btnEndNow").addEventListener("click", function () {
+      $("dlgFinish").close(); S.running = false; S.sim.endNow(); setPlay();
     });
     $("btnCsv").addEventListener("click", function () {
       var name = $("csvSel").value, sh = T.Report.sheets(S.sim).filter(function (s) { return s[0] === name; })[0];

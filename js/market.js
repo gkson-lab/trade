@@ -35,6 +35,8 @@
     [0.04, 0.16, 0.42, 0.38]
   ];
   var SECTOR_BETA = [1.25, 0.9, 1.1, 1.15, 0.6, 1.05, 1.0, 0.45, 0.85, 1.05, 0.7, 1.0];
+  var SECTOR_PE = [32, 24, 13, 24, 21, 22, 11, 18, 35, 17, 15, 20];
+  var SECTOR_DIV = [0.008, 0.012, 0.025, 0.010, 0.028, 0.015, 0.035, 0.035, 0.040, 0.020, 0.040, 0.010];
   var SECTOR_VOL = [0.11, 0.10, 0.09, 0.10, 0.06, 0.07, 0.18, 0.08, 0.10, 0.12, 0.08, 0.10];
 
   // intraday profile: volatility multiplier per bar (U-shape), normalized to RMS 1
@@ -75,6 +77,15 @@
     this.volState = new Float32Array(n); this.pending = new Float32Array(n); this.drift = new Float32Array(n);
     this.sentiment = new Float32Array(n); this.haltUntil = new Int32Array(n); this.ewVar = new Float32Array(n);
     this.lastNewsDay = new Int32Array(n).fill(-999);
+    // fundamentals and technicals
+    this.eps = new Float64Array(n); this.divYield = new Float32Array(n); this.shortInt = new Float32Array(n);
+    this.rsiG = new Float64Array(n); this.rsiL = new Float64Array(n); this.atrPct = new Float32Array(n);
+    this.vwapPV = new Float64Array(n); this.vwapV = new Float64Array(n);
+    this.hiRange = new Float64Array(n); this.loRange = new Float64Array(n);
+    this.belowDollar = new Int32Array(n); this.splitAdj = new Float64Array(n).fill(1);
+    this.newsCount = new Int32Array(n); this.earnCount = new Int32Array(n); this.splitCount = new Int32Array(n);
+    this.divPaid = new Float64Array(n);
+    this.divByOffset = {};
     this.symIndex = Object.create(null);
     this.earningsByOffset = {};
 
@@ -103,6 +114,12 @@
       this.earningsBias[i] = 0.25 * rr.normal();
       var off = T.hashStr("e" + row[0]) % 63;
       (this.earningsByOffset[off] = this.earningsByOffset[off] || []).push(i);
+      var lossMaker = row[5] < 2000 && (T.hashStr("l" + row[0]) % 100) < 55;
+      this.eps[i] = lossMaker ? -row[4] * (0.02 + 0.13 * rr.next()) : row[4] / (SECTOR_PE[row[3]] * Math.exp(0.35 * rr.normal()));
+      var payer = row[5] > 10000 ? rr.next() < 0.8 : rr.next() < 0.35;
+      this.divYield[i] = payer && !lossMaker ? SECTOR_DIV[row[3]] * Math.exp(0.4 * rr.normal()) : 0;
+      if (this.divYield[i] > 0) { var doff = (off + 31) % 63; (this.divByOffset[doff] = this.divByOffset[doff] || []).push(i); }
+      this.shortInt[i] = Math.min(0.45, (0.015 + 0.03 * smallness) * Math.exp(0.6 * rr.normal()));
       this.volState[i] = 1;
       this.ewVar[i] = this.idioVol[i] * this.idioVol[i] / 252;
       tot += Math.pow(row[5], 0.35); cum[i] = tot;
@@ -128,14 +145,18 @@
     this.haltMarketUntil = -1;
     this.cbLevel = 0;
     this.news = new T.News(r.fork("news"), this);
-    this.newsLog = [];
-    this.recentNews = [];
+    this.recentNews = [];     // last 200 items for the UI (each has a running seq number)
+    this.newsSeq = 0;
+    this.newsQueue = [];      // items not yet collected by the run logger (drainNews)
+    this._dates = [];
     this.listeners = [];
     this.startDate = new Date(Date.UTC(2027, 0, 4));
     this.date = new Date(this.startDate.getTime());
     this._poolBar = -1; this._pool = null;
     this.featureStamp = new Int32Array(n).fill(-1);
-    this.NF = 11;
+    this.NF = 15;
+    this.lastBreadth = null;
+    this.lastSectorRet = new Float64Array(T.SECTORS.length);
     this.features = new Float32Array(n * this.NF);
 
     // static liquidity rank for the candidate pool
@@ -161,7 +182,18 @@
   };
 
   Market.prototype.dateStr = function (dayOffset) {
-    var d = new Date(this.startDate.getTime()), k = dayOffset || 0;
+    var k0 = dayOffset || 0;
+    if (k0 >= 0) {   // cached: O(1) even after years of simulated time
+      var c = this._dates;
+      if (!c.length) c.push(this.startDate.toISOString().slice(0, 10));
+      while (c.length <= k0) {
+        var dd = new Date(c[c.length - 1] + "T00:00:00Z");
+        do { dd.setUTCDate(dd.getUTCDate() + 1); } while (dd.getUTCDay() === 0 || dd.getUTCDay() === 6);
+        c.push(dd.toISOString().slice(0, 10));
+      }
+      return c[k0];
+    }
+    var d = new Date(this.startDate.getTime()), k = k0;
     if (k > 0) { while (k > 0) { d.setUTCDate(d.getUTCDate() + 1); if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) k--; } }
     else { while (k < 0) { d.setUTCDate(d.getUTCDate() - 1); if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) k++; } }
     return d.toISOString().slice(0, 10);
@@ -207,6 +239,16 @@
       }
       this.price[i] = p0; this.prevClose[i] = p0;
       this.dOpen[i] = p0; this.dHigh[i] = p0; this.dLow[i] = p0; this.dVolume[i] = 0;
+      var g = 0, l = 0, atr = 0, hiR = 0, loR = Infinity;
+      for (t = 1; t < BACKFILL; t++) {
+        var cc = this.dC[base + (t % D)], pc = this.dC[base + ((t - 1) % D)], ch = cc - pc;
+        g = (g * 13 + Math.max(ch, 0)) / 14; l = (l * 13 + Math.max(-ch, 0)) / 14;
+        var tr = Math.max(this.dH[base + (t % D)] - this.dL[base + (t % D)], Math.abs(this.dH[base + (t % D)] - pc), Math.abs(this.dL[base + (t % D)] - pc)) / cc;
+        atr = t === 1 ? tr : atr * 13 / 14 + tr / 14;
+        if (this.dH[base + (t % D)] > hiR) hiR = this.dH[base + (t % D)];
+        if (this.dL[base + (t % D)] < loR) loR = this.dL[base + (t % D)];
+      }
+      this.rsiG[i] = g; this.rsiL[i] = l; this.atrPct[i] = atr; this.hiRange[i] = hiR; this.loRange[i] = loR;
     }
     // index & sector index histories from constituents
     var divisor = 0, capNow = 0;
@@ -254,11 +296,51 @@
       this.mVar *= 1 + ((it.vol || 1.3) - 1) * 0.5;
       if (it.regimePush) this.pushRegime(it.regimePush);
     }
+    if (it.scope === "stock") this.newsCount[it.target]++;
+    if (it.kind === "earnings") this.earnCount[it.target]++;
+    this.logNews(it);
+  };
+
+  Market.prototype.logNews = function (it) {
+    it.seq = ++this.newsSeq;
     it.date = this.dateStr(this.day);
     it.time = this.clockStr();
-    this.newsLog.push(it);
+    if (it.vix === undefined) it.vix = this.vix();
+    this.newsQueue.push(it);
+    if (this.newsQueue.length > 400000) this.newsQueue.splice(0, 100000);   // nobody is draining: keep memory bounded
     this.recentNews.push(it);
     if (this.recentNews.length > 200) this.recentNews.shift();
+  };
+
+  /* Hand over every item logged since the last call. */
+  Market.prototype.drainNews = function () { var q = this.newsQueue; this.newsQueue = []; return q; };
+
+  /* SIM VIX: implied-volatility proxy from the GARCH state, with a fear premium in bad regimes. */
+  Market.prototype.vix = function () {
+    return Math.round((100 * Math.sqrt(this.mVar * BPD * 252) * 1.12 + 2.5 + (this.regime >= 2 ? 4 : 0) + (this.regime === 3 ? 10 : 0)) * 100) / 100;
+  };
+
+  Market.prototype.rsi = function (i) {
+    var ch = this.price[i] - this.prevClose[i];
+    var g = (this.rsiG[i] * 13 + Math.max(ch, 0)) / 14, l = (this.rsiL[i] * 13 + Math.max(-ch, 0)) / 14;
+    return l <= 0 ? 100 : 100 - 100 / (1 + g / l);
+  };
+  Market.prototype.vwap = function (i) { return this.vwapV[i] > 0 ? this.vwapPV[i] / this.vwapV[i] : this.price[i]; };
+  Market.prototype.marketCap = function (i) { return this.shares[i] * this.price[i]; };
+  Market.prototype.pe = function (i) { return this.eps[i] > 0 ? this.price[i] / this.eps[i] : null; };
+
+  /* Split by factor f (new price = old price * f). Reverse 1-for-10: f = 10. Forward 4-for-1: f = 0.25. */
+  Market.prototype.split = function (i, f, label) {
+    var a, k;
+    this.price[i] *= f; this.prevClose[i] *= f; this.dOpen[i] *= f; this.dHigh[i] *= f; this.dLow[i] *= f;
+    this.shares[i] /= f; this.eps[i] *= f; this.hiRange[i] *= f; this.loRange[i] *= f;
+    this.rsiG[i] *= f; this.rsiL[i] *= f; this.vwapPV[i] *= f; this.splitAdj[i] *= f; this.avgVol[i] /= f;
+    this.belowDollar[i] = 0; this.splitCount[i]++;
+    for (k = 0; k < INTRA; k++) { a = i * INTRA + k; this.iO[a] *= f; this.iH[a] *= f; this.iL[a] *= f; this.iC[a] *= f; this.iV[a] /= f; }
+    for (k = 0; k < DAILY; k++) { a = i * DAILY + k; this.dO[a] *= f; this.dH[a] *= f; this.dL[a] *= f; this.dC[a] *= f; this.dV[a] /= f; }
+    this.logNews({ id: 0, day: this.day, bar: this.bar, scope: "stock", target: i, sym: this.sym[i], kind: "split", impact: 0, sentiment: 0,
+      headline: this.name[i] + " (" + this.sym[i] + ") completes " + label + " stock split" });
+    this.emit("split", { i: i, f: f });
   };
 
   Market.prototype.pushRegime = function (dir) {
@@ -363,6 +445,7 @@
       if (hi > this.dHigh[i]) this.dHigh[i] = hi;
       if (lo < this.dLow[i]) this.dLow[i] = lo;
       this.dVolume[i] += vol;
+      this.vwapPV[i] += (hi + lo + c) / 3 * vol; this.vwapV[i] += vol;
 
       // volatility clustering
       var vs = this.volState[i];
@@ -373,10 +456,8 @@
       if (!opening && Math.abs(ret) > (p < 3 ? 0.2 : 0.1)) {
         this.haltUntil[i] = g + 3;
         if (this.mcap0[i] >= 1000) {
-          this.newsLog.push({ id: 0, day: this.day, bar: b, scope: "stock", target: i, sym: this.sym[i], kind: "halt",
-            headline: "Trading halted in " + this.sym[i] + " (volatility pause, LULD)", impact: 0, sentiment: 0,
-            date: this.dateStr(this.day), time: this.clockStr() });
-          this.recentNews.push(this.newsLog[this.newsLog.length - 1]);
+          this.logNews({ id: 0, day: this.day, bar: b, scope: "stock", target: i, sym: this.sym[i], kind: "halt",
+            headline: "Trading halted in " + this.sym[i] + " (volatility pause, LULD)", impact: 0, sentiment: 0 });
         }
       }
     }
@@ -390,9 +471,8 @@
         this.cbLevel = lvl;
         this.haltMarketUntil = lvl === 3 ? g + (BPD - b) : g + 3;
         var it = { id: 0, day: this.day, bar: b, scope: "market", target: -1, sym: null, kind: "halt", impact: 0, sentiment: -1,
-          headline: "Market-wide circuit breaker Level " + lvl + " triggered: SIM 500 down " + (-dd * 100).toFixed(1) + "%",
-          date: this.dateStr(this.day), time: this.clockStr() };
-        this.newsLog.push(it); this.recentNews.push(it);
+          headline: "Market-wide circuit breaker Level " + lvl + " triggered: SIM 500 down " + (-dd * 100).toFixed(1) + "%" };
+        this.logNews(it);
       }
     }
 
@@ -401,6 +481,14 @@
     var closed = false;
     if (this.bar >= BPD) { this.closeDay(); closed = true; }
     return closed;
+  };
+
+  Market.prototype.recomputeRange = function () {
+    for (var i = 0; i < this.n; i++) {
+      var hi = 0, lo = Infinity;
+      for (var k = 0; k < DAILY; k++) { var a = i * DAILY + k; if (this.dH[a] > hi) hi = this.dH[a]; if (this.dL[a] > 0 && this.dL[a] < lo) lo = this.dL[a]; }
+      this.hiRange[i] = hi; this.loRange[i] = lo;
+    }
   };
 
   Market.prototype.updateIndex = function (pos) {
@@ -429,8 +517,20 @@
     while (k < 3 && x > row[k]) { x -= row[k]; k++; }
     this.regimeDays++;
     if (k !== this.regime) this.setRegime(k);
+    // ex-dividend: the price opens lower by the payout; holders are paid via the "dividend" event
+    var ex = this.divByOffset[this.day % 63];
+    if (ex) for (var e = 0; e < ex.length; e++) {
+      var j = ex[e], amt = Math.round(this.price[j] * this.divYield[j] / 4 * 10000) / 10000;
+      if (amt < 0.0001 || this.price[j] < 1) continue;
+      this.prevClose[j] -= amt; this.price[j] -= amt;
+      this.divPaid[j] += amt;
+      this.emit("dividend", { i: j, amount: amt });
+      if (this.sp[j]) this.logNews({ id: 0, day: this.day, bar: 0, scope: "stock", target: j, sym: this.sym[j], kind: "dividend", impact: 0, sentiment: 0,
+        headline: this.name[j] + " (" + this.sym[j] + ") goes ex-dividend $" + amt.toFixed(2) + " (" + (this.divYield[j] * 100).toFixed(2) + "% yield)" });
+    }
     for (var i = 0; i < this.n; i++) {
       this.dOpen[i] = this.price[i]; this.dHigh[i] = this.price[i]; this.dLow[i] = this.price[i]; this.dVolume[i] = 0;
+      this.vwapPV[i] = 0; this.vwapV[i] = 0;
     }
     this.indexOpen = this.index; this.indexHigh = this.index; this.indexLow = this.index; this.indexVol = 0;
     this.cbLevel = 0;
@@ -438,13 +538,35 @@
 
   Market.prototype.closeDay = function () {
     var D = DAILY, q = this.dayIdx % D;
+    var br = { advancers: 0, decliners: 0, unchanged: 0, upVolume: 0, downVolume: 0, newHighs: 0, newLows: 0, dollarVolume: 0, above20d: 0, halted: 0 };
     for (var i = 0; i < this.n; i++) {
-      var k = i * D + q, c = this.price[i];
+      var k = i * D + q, c = this.price[i], pc = this.prevClose[i];
       this.dO[k] = this.dOpen[i]; this.dH[k] = this.dHigh[i]; this.dL[k] = this.dLow[i]; this.dC[k] = c; this.dV[k] = this.dVolume[i];
-      var lr = Math.log(c / this.prevClose[i]);
+      var lr = Math.log(c / pc);
       this.ewVar[i] = 0.94 * this.ewVar[i] + 0.06 * lr * lr;
+      var ch = c - pc;
+      this.rsiG[i] = (this.rsiG[i] * 13 + Math.max(ch, 0)) / 14; this.rsiL[i] = (this.rsiL[i] * 13 + Math.max(-ch, 0)) / 14;
+      var tr = Math.max(this.dHigh[i] - this.dLow[i], Math.abs(this.dHigh[i] - pc), Math.abs(this.dLow[i] - pc)) / c;
+      this.atrPct[i] = this.atrPct[i] * 13 / 14 + tr / 14;
+      if (c > pc) { br.advancers++; br.upVolume += this.dVolume[i]; } else if (c < pc) { br.decliners++; br.downVolume += this.dVolume[i]; } else br.unchanged++;
+      if (this.dHigh[i] > this.hiRange[i]) { this.hiRange[i] = this.dHigh[i]; br.newHighs++; }
+      if (this.dLow[i] < this.loRange[i]) { this.loRange[i] = this.dLow[i]; br.newLows++; }
+      br.dollarVolume += this.dVolume[i] * c;
+      if (this.haltUntil[i] > this.gBar) br.halted++;
       this.prevClose[i] = c;
-      // occasional daily-volatility fade of huge pending moves
+      this.belowDollar[i] = c < 1 && this.price0[i] >= 1 ? this.belowDollar[i] + 1 : 0;
+    }
+    // rolling range: forget extremes older than the daily window every 20 sessions
+    if (this.day % 20 === 19) this.recomputeRange();
+    var sum20 = 0;
+    for (i = 0; i < this.n; i++) { sum20 = 0; for (var b2 = 0; b2 < 20; b2++) sum20 += this.dC[i * D + ((this.dayIdx - b2 + D) % D)]; if (this.price[i] > sum20 / 20) br.above20d++; }
+    br.vix = this.vix();
+    this.lastBreadth = br;
+    for (var s0 = 0; s0 < this.sectorPrev.length; s0++) this.lastSectorRet[s0] = this.sectorIdx[s0] / this.sectorPrev[s0] - 1;
+    // corporate actions: exchange-compliance reverse splits, and forward splits for very high prices
+    for (i = 0; i < this.n; i++) {
+      if (this.belowDollar[i] >= 30) this.split(i, 10, "1-for-10 reverse");
+      else if (this.price[i] > 1500 && this.mcap0[i] > 20000 && this.rng.chance(0.01)) this.split(i, 0.25, "4-for-1");
     }
     this.idx.dO[q] = this.indexOpen; this.idx.dH[q] = this.indexHigh; this.idx.dL[q] = this.indexLow;
     this.idx.dC[q] = this.index; this.idx.dV[q] = this.indexVol;
@@ -507,6 +629,10 @@
     f[base + 8] = Math.tanh(Math.log(this.sectorIdx[s] / this.sectorPrev[s]) / 0.012);
     f[base + 9] = Math.tanh(this.beta[i] - 1);
     f[base + 10] = Math.tanh((Math.log10(this.mcap0[i] + 1) - 3.5) / 1.5);
+    f[base + 11] = (this.rsi(i) - 50) / 25;
+    f[base + 12] = Math.tanh(Math.log(p / this.vwap(i)) / (dvol * 0.5));
+    f[base + 13] = Math.tanh(this.eps[i] / p * 10);
+    f[base + 14] = Math.tanh((this.shortInt[i] - 0.08) * 12);
     this.featureStamp[i] = this.gBar;
     return base;
   };

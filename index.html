@@ -6,6 +6,8 @@
 <title>Trade Box</title>
 <meta name="description" content="Evolving AI trading bots on a simulated US stock market.">
 <meta name="theme-color" content="#0f1419">
+<meta name="update-repo" content="gkson-lab/trade">
+<meta name="update-branch" content="main">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,6 +23,7 @@
     <span id="idxVal" class="num strong">5,000.00</span>
     <span id="idxChg" class="num chg">0.00%</span>
   </div>
+  <div class="ticker" aria-label="SIM VIX volatility index"><span class="ticker-name keep">VIX</span><span id="vixVal" class="num">—</span></div>
   <div class="regime"><span class="muted">Regime</span> <span id="regime" class="badge">Neutral</span></div>
   <div class="clock"><span id="clockDate" class="num">2027-01-04</span> <span id="clockTime" class="num muted">9:30 AM</span></div>
   <div class="genbox">
@@ -38,12 +41,20 @@
       <option value="60">60 bars/s</option>
       <option value="0">Max</option>
     </select>
+    <button id="btnFinish" class="btn" type="button">Finish</button>
+    <button id="btnData" class="btn" type="button">Data</button>
     <button id="btnNew" class="btn" type="button">New run</button>
     <button id="btnTheme" class="btn icon" type="button" aria-label="Toggle light or dark theme">
       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
     </button>
   </div>
 </header>
+
+<div class="update-bar" id="updateBar" role="status" hidden>
+  <span id="updateText"></span>
+  <button type="button" class="btn primary" id="btnUpdate">Reload</button>
+  <button type="button" class="btn" id="btnUpdateLater">Later</button>
+</div>
 
 <main class="layout" id="layout">
   <section class="panel markets" id="pMarkets" aria-labelledby="hMarkets">
@@ -87,6 +98,18 @@
         <button type="button" role="tab" class="seg-btn" data-tf="1D" aria-selected="false">1D</button>
       </div>
     </div>
+    <div class="fund-row" id="fundRow" aria-label="Fundamentals and technicals">
+      <div><span class="k">Mkt cap</span><span id="fCap" class="num"></span></div>
+      <div><span class="k">P/E</span><span id="fPE" class="num"></span></div>
+      <div><span class="k">EPS (TTM)</span><span id="fEPS" class="num"></span></div>
+      <div><span class="k">Div yield</span><span id="fDiv" class="num"></span></div>
+      <div><span class="k">Short int.</span><span id="fSI" class="num"></span></div>
+      <div><span class="k">RSI 14</span><span id="fRSI" class="num"></span></div>
+      <div><span class="k">ATR</span><span id="fATR" class="num"></span></div>
+      <div><span class="k">VWAP</span><span id="fVWAP" class="num"></span></div>
+      <div><span class="k">6M range</span><span id="fRange" class="num"></span></div>
+      <div><span class="k">Beta</span><span id="fBeta" class="num"></span></div>
+    </div>
     <div class="chart-wrap"><canvas id="mainChart" aria-label="Price chart" role="img"></canvas></div>
     <div class="minis-head"><h3>Live charts</h3><span class="muted">Most held by bots, then biggest movers. Select one to open it.</span></div>
     <div id="minis" class="minis"></div>
@@ -129,7 +152,7 @@
 
 <footer class="statusbar">
   <span id="status">Ready. Press Start.</span>
-  <span class="muted">Fictional market: real US symbols, simulated prices. Not investment advice.</span>
+  <span class="muted"><span id="updateStatus">Checking GitHub for updates…</span> · Fictional market: real US symbols, simulated prices. Not investment advice.</span>
 </footer>
 
 <dialog id="dlgNew" aria-labelledby="dlgNewTitle">
@@ -145,11 +168,20 @@
       <p class="hint" id="popHint">Gen 1: 20 bots. Gen 2: pairs breed one child each, 10 bots. Gen 3 on: pairs have twins, back to 20.</p>
     </div>
     <div class="grid2">
-      <div class="field"><label class="label" for="inGens">Generations</label><input class="input" id="inGens" type="number" min="2" max="200" value="6" required></div>
+      <div class="field"><label class="label" for="inGens">Generations</label><input class="input" id="inGens" type="number" min="2" max="100000" value="6" required>
+        <label class="check"><input type="checkbox" id="inForever"> Run forever, until I press Finish</label></div>
       <div class="field"><label class="label" for="inDays">Trading days per generation</label><input class="input" id="inDays" type="number" min="1" max="120" value="10" required></div>
       <div class="field"><label class="label" for="inSeed">Seed</label><input class="input" id="inSeed" type="number" min="1" max="2147483647" value="20270104" required></div>
       <div class="field"><label class="label" for="inFit">Breeding picks by</label>
         <select class="select full" id="inFit"><option value="return">Total return</option><option value="risk">Return minus half max drawdown</option></select></div>
+    </div>
+    <div class="field"><label class="label" for="inBudget">Trade-level rows kept in memory</label>
+      <select class="select full" id="inBudget">
+        <option value="500000">500,000 (phones)</option>
+        <option value="1500000" selected>1.5 million</option>
+        <option value="4000000">4 million (desktop, lots of RAM)</option>
+      </select>
+      <p class="hint">Long and endless runs drop the oldest generations' trade-level rows once this fills up. Generation, bot, genetics, market and genome tables are always kept in full. Download the generation CSVs as you go to keep everything, or use the CLI, which writes every generation to disk.</p>
     </div>
     <p class="err" id="newErr" role="alert" hidden></p>
     <div class="dlg-actions">
@@ -157,6 +189,19 @@
       <button type="submit" class="btn primary" id="btnStartNew">Build the box</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="dlgFinish" aria-labelledby="dlgFinishTitle">
+  <div class="dlg">
+    <h2 id="dlgFinishTitle">Finish the run</h2>
+    <p class="hint">Either way the report opens with every table ready to download.</p>
+    <div class="dlg-actions left">
+      <button type="button" class="btn primary" id="btnStopAfter">Stop after this generation</button>
+      <button type="button" class="btn" id="btnEndNow">End now</button>
+      <button type="button" class="btn" id="btnCancelFinish">Keep running</button>
+    </div>
+    <p class="hint">End now sells every position at market and scores the partial generation.</p>
+  </div>
 </dialog>
 
 <dialog id="dlgBot" aria-labelledby="dlgBotTitle">
@@ -169,15 +214,35 @@
 
 <dialog id="dlgReport" aria-labelledby="dlgReportTitle">
   <div class="dlg wide">
-    <div class="dlg-top"><h2 id="dlgReportTitle">Run report</h2><button type="button" class="btn icon" id="btnCloseReport" aria-label="Close">
+    <div class="dlg-top"><h2 id="dlgReportTitle">Report and data</h2><button type="button" class="btn icon" id="btnCloseReport" aria-label="Close">
       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div id="reportBody"></div>
-    <div class="dlg-actions left">
-      <button type="button" class="btn primary" id="btnXlsx">Download workbook (.xlsx)</button>
-      <label class="sr-only" for="csvSel">CSV sheet</label>
-      <select id="csvSel" class="select"></select>
-      <button type="button" class="btn" id="btnCsv">Download CSV</button>
-    </div>
+    <section class="exports" aria-labelledby="hExports">
+      <h3 id="hExports">Export</h3>
+      <p class="hint" id="exportNote"></p>
+      <div class="export-grid">
+        <div class="export"><b>Master workbook</b><span class="hint">All 15 tables with every generation stacked, plus one sheet per generation.</span>
+          <button type="button" class="btn primary" id="btnXlsx">Download .xlsx</button></div>
+        <div class="export"><b>Generation CSVs</b><span class="hint">A .zip with a gen-0001, gen-0002 ... folder of CSVs for each generation, plus run-level CSVs.</span>
+          <button type="button" class="btn" id="btnGenZip">Download .zip</button></div>
+        <div class="export"><b>Every bot, individually</b><span class="hint">A .zip with a folder per bot: profile, generations, daily ledger, round trips, trades, positions, sector and symbol P/L.</span>
+          <button type="button" class="btn" id="btnBotZip">Download .zip</button></div>
+        <div class="export"><b>Bot ledger workbook</b><span class="hint">An index of every bot plus one daily-ledger sheet per bot.</span>
+          <button type="button" class="btn" id="btnBotBook">Download .xlsx</button></div>
+        <div class="export"><b>One bot</b>
+          <label class="sr-only" for="botSel">Bot</label><select id="botSel" class="select full"></select>
+          <button type="button" class="btn" id="btnOneBot">Download .xlsx</button></div>
+        <div class="export"><b>One table</b>
+          <label class="sr-only" for="csvSel">Table</label><select id="csvSel" class="select full"></select>
+          <button type="button" class="btn" id="btnCsv">Download .csv</button></div>
+        <div class="export wide"><b>Combine CSVs into one spreadsheet</b>
+          <span class="hint">Pick any CSVs or .zip files from earlier downloads, from this run or previous ones. Files with the same name (all the trades.csv files, for example) are stacked into one sheet with a source column.</span>
+          <label class="label" for="combineFiles">CSV or .zip files</label>
+          <input id="combineFiles" class="input file" type="file" accept=".csv,.zip,text/csv,application/zip" multiple>
+          <button type="button" class="btn" id="btnCombine">Combine and download .xlsx</button>
+          <p class="err" id="combineErr" role="alert" hidden></p></div>
+      </div>
+    </section>
   </div>
 </dialog>
 
@@ -190,6 +255,7 @@
 <script src="js/report.js"></script>
 <script src="js/charts.js"></script>
 <script src="js/app.js"></script>
+<script src="js/updates.js"></script>
 <script src="vendor/xlsx.full.min.js" defer></script>
 </body>
 </html>

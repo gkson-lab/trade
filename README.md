@@ -12,14 +12,17 @@ The market is fictional. The 6,138 symbols are real NASDAQ, NYSE and AMEX listin
 |---|---|
 | Any browser | Open `index.html` directly, or serve the folder: `python3 -m http.server 8080` |
 | Phone / tablet | Host the folder (GitHub Pages: Settings → Pages → Deploy from branch `main`, root) and open the URL. It installs as an app and works offline after the first visit. |
-| Headless | `node cli.js --mult 2 --gens 6 --days 10 --seed 42` writes `out/run-*/trade-run.xlsx` plus one CSV per sheet |
+| Headless | `node cli.js --mult 2 --gens 6 --days 10 --seed 42` |
+| Endless | Browser: **New run → Run forever**, then **Finish** when you want to stop. CLI: `node cli.js --forever` (Ctrl+C finishes the current generation and saves everything; `--max-gens N` and `--max-minutes M` also work) |
+| Combine CSVs | `node tools/combine.js out/run-20270104-x1` or `node tools/combine.js a.zip b/*.csv --out merged.xlsx`. In the browser: **Data → Combine CSVs into one spreadsheet** |
+| Update checker | Built into the page: checks GitHub every 5-10 minutes and shows a **Reload** bar when a new commit lands on `main`. For a local clone: `node tools/check-updates.js` (add `--pull` to fast-forward automatically, `--branch` to pick a branch, `--once` for a single check) |
 | Tests | `node tests/run.js` |
 
 ## The bots
 
-Each bot is a small neural network: 11 market features → 8 hidden units → 1 score. On top of that are 12 behaviour genes: buy and sell thresholds, number of positions, position size, stop loss, trailing stop, take profit, how often it decides, max hold time, cash reserve, shorting on or off, and conviction sizing.
+Each bot is a small neural network: 15 market features → 8 hidden units → 1 score. On top of that are 12 behaviour genes: buy and sell thresholds, number of positions, position size, stop loss, trailing stop, take profit, how often it decides, max hold time, cash reserve, shorting on or off, and conviction sizing.
 
-The 11 features are short, day and week momentum, distance from the 20-day mean, decayed news sentiment, realized volatility, volume surge, market trend, sector trend, beta and size.
+The 15 features are short, day and week momentum, distance from the 20-day mean, decayed news sentiment, realized volatility, volume surge, market trend, sector trend, beta, size, RSI, distance from VWAP, earnings yield and short interest.
 
 Every bot starts each generation with $100,000. Trades pay the real costs of trading:
 
@@ -59,7 +62,10 @@ Every 5-minute bar, for every symbol:
 
   News moves prices through gaps, multi-bar price discovery, post-news drift and volatility spikes.
 - **LULD single-stock halts** and **market-wide circuit breakers** at -7%, -13% and -20% on the SIM 500.
-- **SIM 500**: a cap-weighted index of S&P 500 members, plus a cap-weighted index for each sector.
+- **SIM 500**: a cap-weighted index of S&P 500 members, plus a cap-weighted index for each sector. **SIM VIX**: a volatility index read from the market's volatility state.
+- **Fundamentals**: EPS that rolls forward with each earnings report, P/E, dividend yields with quarterly ex-dividend drops (paid to bots holding long, charged to shorts), and short interest.
+- **Technicals**: RSI 14, ATR, intraday VWAP, a 6-month range, breadth, new highs/lows.
+- **Corporate actions**: 1-for-10 reverse splits after 30 sessions under $1, and occasional 4-for-1 splits for very high-priced large caps. Bots' positions adjust, with cash paid for fractional shares.
 
 `node tests/market_stats.js 250` prints the realized statistics for a simulated year:
 
@@ -83,20 +89,40 @@ On phones, a bottom tab bar switches between panels.
 
 At the end of a run, the report shows run-wide averages (return, P/L, win rate, Sharpe, drawdown), a per-generation chart and table, and the top bot runs. It also offers downloads.
 
-## Data sheets
+## Data
 
-The workbook (`.xlsx`) has these sheets. Each one is also available as a CSV.
+Open **Data** at any time, even mid-run, to see the report and export. The exports are:
 
-| Sheet | Rows |
+| Export | What's in it |
 |---|---|
-| Summary | Run settings and averages |
-| Generations | Avg / median / best / worst return, profitable bots, bots beating the index, Sharpe, win rate, fees, regime days |
-| Bots | One row per bot per generation: rank, lineage, style, return, P/L, drawdown, Sharpe, trades, win rate, profit factor, genes |
-| Trades | Every fill with price, fee, realized P/L and reason |
-| Equity Daily | Each bot's equity at every close |
-| Market Daily | SIM 500 OHLC, regime, fed funds, CPI, unemployment, advancers/decliners |
-| News | Every headline with its price impact |
-| Genomes | Full network weights and genes for every bot ever born |
+| Master workbook (.xlsx) | All 15 tables below, with every generation stacked and a `gen` column, plus one `Gen N` sheet per generation |
+| Generation CSVs (.zip) | `gen-0001/`, `gen-0002/` ... with that generation's bots, trades, round trips, bot daily, intraday equity, positions, market, sectors, news and genetics, plus run-level CSVs |
+| Every bot (.zip) | `bots/<name>/` for every bot: profile (with genome), per-generation results, daily ledger, round trips, trades, intraday equity, positions, sector P/L, symbol P/L |
+| Bot ledger workbook (.xlsx) | An index of every bot, then one daily-ledger sheet per bot |
+| One bot (.xlsx) | Everything about one bot. Also available from the bot's own panel |
+| Combine | Merges any CSVs or ZIPs (from this run or earlier ones) into one spreadsheet. Same-named files are stacked with a `source` column |
+
+Sheets that would pass Excel's row limit continue on a `(2)` sheet.
+
+| Table | Rows |
+|---|---|
+| Summary | Run settings and run-wide averages: return, P/L, Sharpe, Sortino, alpha, beta, win rate, drawdown, compounded bot vs index |
+| Generations | Per generation: avg / median / quartiles / best / worst return, profitable bots, bots beating the index, Sharpe, Sortino, alpha, beta, profit factor, exposure, turnover, fees, dividends, survivors vs children, change vs previous gen, cumulative returns, index volatility, average VIX, regime days |
+| Genetics | Per generation: genome diversity, average of every gene, share of shorters and trailers, average weight on each of the 15 inputs, style mix |
+| Bots | One row per bot per generation, about 75 columns: return, annualized return, volatility, Sharpe, Sortino, Calmar, drawdown and its duration, alpha, beta, correlation, R², tracking error, information ratio, VaR/CVaR 95, skew, kurtosis, win rate, profit factor, expectancy, payoff, largest win/loss, MFE/MAE, edge ratio, streaks, long vs short P/L, exposure, turnover, fees, borrow, dividends, best/worst sector and symbol, genes |
+| Bot Profiles | One row per bot ever born: lineage, children, generations lived, compounded return, best/worst generation, totals, average and best rank, status, genes |
+| Genomes | Every bot's genes, top input features and full network weights |
+| Trades | Every fill: price, mid, spread and impact in bps, notional, fee, realized P/L, reason, signal strength, cash after |
+| Round Trips | Every entry-to-exit: hold time, P/L, return, max favourable/adverse excursion, entry signal and RSI, entry/exit reason, regime in/out, fees |
+| Bot Daily | Each bot's close-of-day ledger: equity, cash, daily P/L, drawdown, positions, gross/net exposure, trades, notional, realized P/L, fees, borrow, dividends |
+| Equity Intraday | Every bot's equity every 30 minutes, next to the SIM 500 |
+| Positions | End-of-day holdings: side, qty, cost, close, market value, unrealized P/L, days held |
+| Market Daily | SIM 500 OHLC, SIM VIX, regime, fed funds, CPI, unemployment, GDP, advancers/decliners, up/down volume, new highs/lows, % above the 20-day average, dollar volume, halts |
+| Sector Daily | Daily return and level of all 12 sector indices |
+| News | Every headline with impact, sentiment, VIX at the time, and EPS actual/estimate/surprise for earnings |
+| Symbols | All 6,138 symbols: price and return since start (split-adjusted), market cap, EPS, P/E, dividend yield and amount paid, short interest, beta, volatility, RSI, ATR, 6-month range, news/earnings/split counts, bot round trips and P/L |
+
+**Endless runs** keep every summary table in full. Trade-level tables keep the newest rows up to a memory budget (New run → *Trade-level rows kept in memory*); past that, the oldest generations' trade-level rows are dropped from memory, and the exports say which ones. The CLI writes every generation's CSVs to disk as it goes, so nothing is lost there.
 
 ## Files
 
@@ -109,7 +135,10 @@ js/sim.js                    generations and breeding
 js/report.js                 sheets (XLSX / CSV)
 js/charts.js                 canvas charts
 js/symbols.js                generated by tools/build_symbols.py from data/source/
-cli.js                       headless runner
+js/updates.js                GitHub update checker (in the page)
+cli.js                       headless runner (endless mode, writes each generation to disk)
+tools/combine.js             merge generation CSVs / ZIPs into one workbook
+tools/check-updates.js       update checker for a local clone
 vendor/xlsx.full.min.js      SheetJS 0.18.5 (Apache-2.0)
 ```
 
