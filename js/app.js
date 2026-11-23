@@ -468,7 +468,16 @@
     requestAnimationFrame(function () { T.genBars(cv, gensShown); });
   }
 
+  // Inside the claude.ai viewer (the phone link), files are saved through the viewer's own save prompt.
+  var savePrompt = null;
+  try { if (window.claude && window.claude.use) window.claude.use("downloads").then(function (d) { savePrompt = d; }, function () {}); } catch (e) { /* plain browser */ }
   function download(name, blob) {
+    if (savePrompt) {
+      savePrompt.save({ filename: name, data: blob }).then(function () { setStatus("Saved " + name + "."); }, function (e) {
+        setStatus(e && e.code === "declined" ? "Download cancelled." : e && e.code === "rate_limited" ? "Another save is waiting for you. Finish it, then try again." : "Could not save " + name + (e && e.message ? ": " + e.message : "."));
+      });
+      return;
+    }
     var a = el("a"); a.href = URL.createObjectURL(blob); a.download = name;
     document.body.appendChild(a); a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);

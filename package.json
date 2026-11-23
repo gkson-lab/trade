@@ -11,7 +11,8 @@
     "symbols": "python3 tools/build_symbols.py",
     "forever": "node cli.js --forever",
     "combine": "node tools/combine.js",
-    "watch-updates": "node tools/check-updates.js"
+    "watch-updates": "node tools/check-updates.js",
+    "build-phone": "node tools/build_single.js"
   },
   "license": "MIT"
 }
