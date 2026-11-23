@@ -171,6 +171,8 @@
       <div class="field"><label class="label" for="inGens">Generations</label><input class="input" id="inGens" type="number" min="2" max="100000" value="6" required>
         <label class="check"><input type="checkbox" id="inForever"> Run forever, until I press Finish</label></div>
       <div class="field"><label class="label" for="inDays">Trading days per generation</label><input class="input" id="inDays" type="number" min="1" max="120" value="10" required></div>
+      <div class="field"><label class="label" for="inCash">Starting cash per bot ($)</label><input class="input" id="inCash" type="number" min="100" max="1000000000000" step="any" value="100000" required inputmode="decimal">
+        <span class="hint">Every bot starts every generation with this much.</span></div>
       <div class="field"><label class="label" for="inSeed">Seed</label><input class="input" id="inSeed" type="number" min="1" max="2147483647" value="20270104" required></div>
       <div class="field"><label class="label" for="inFit">Breeding picks by</label>
         <select class="select full" id="inFit"><option value="return">Total return</option><option value="risk">Return minus half max drawdown</option></select></div>

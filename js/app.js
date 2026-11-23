@@ -14,7 +14,7 @@
   var S = {
     sim: null, running: false, speed: 15, sel: -1, tf: "5m", filter: "all", sector: -1, query: "",
     feed: "news", acc: 0, lastT: 0, lastList: 0, lastMinis: 0, minis: [], newsSeen: 0, filtered: [], heldCount: null,
-    tradeSeen: {}, cfg: { mult: 1, generations: 6, daysPerGen: 10, seed: 20270104, fitness: "return", detailBudget: 1500000 }, dirtyBots: true
+    tradeSeen: {}, cfg: { mult: 1, generations: 6, daysPerGen: 10, seed: 20270104, fitness: "return", detailBudget: 1500000, startCash: 100000 }, dirtyBots: true
   };
 
   var chart = new T.CandleChart($("mainChart"));
@@ -281,7 +281,7 @@
       });
       S.dirtyBots = false;
     }
-    var start = T.BOT_CONST.START_CASH, up = 0, sum = 0;
+    var start = sim.cfg.startCash, up = 0, sum = 0;
     bots.forEach(function (b, k) {
       var r = botRows[b.id]; if (!r) return;
       list.appendChild(r.li);
@@ -535,7 +535,7 @@
       S.running = false; setPlay();
       mult = S.cfg.mult; popText();
       $("inGens").value = S.cfg.generations || 6; $("inForever").checked = !!S.cfg.forever; $("inGens").disabled = !!S.cfg.forever;
-      $("inBudget").value = String(S.cfg.detailBudget || 1500000); $("inDays").value = S.cfg.daysPerGen; $("inSeed").value = S.cfg.seed; $("inFit").value = S.cfg.fitness;
+      $("inBudget").value = String(S.cfg.detailBudget || 1500000); $("inDays").value = S.cfg.daysPerGen; $("inCash").value = S.cfg.startCash || 100000; $("inSeed").value = S.cfg.seed; $("inFit").value = S.cfg.fitness;
       $("newErr").hidden = true;
       $("dlgNew").showModal();
     });
@@ -545,12 +545,12 @@
     $("inForever").addEventListener("change", function () { $("inGens").disabled = this.checked; });
     $("formNew").addEventListener("submit", function (e) {
       var forever = $("inForever").checked;
-      var g = forever ? 0 : +$("inGens").value, d = +$("inDays").value, s = +$("inSeed").value, err = $("newErr");
+      var g = forever ? 0 : +$("inGens").value, d = +$("inDays").value, s = +$("inSeed").value, cash = +$("inCash").value, err = $("newErr");
       var bad = !forever && !(g >= 2 && g <= 100000) ? "Generations must be between 2 and 100,000, or tick Run forever." : !(d >= 1 && d <= 120) ? "Days per generation must be between 1 and 120." :
-        !(s >= 1) ? "Seed must be a positive whole number." : "";
+        !(s >= 1) ? "Seed must be a positive whole number." : !(cash >= 100 && cash <= 1e12) ? "Starting cash must be between $100 and $1,000,000,000,000." : "";
       if (bad) { e.preventDefault(); err.textContent = bad; err.hidden = false; return; }
       build({ mult: mult, generations: Math.round(g), forever: forever, daysPerGen: Math.round(d), seed: Math.round(s), fitness: $("inFit").value,
-        detailBudget: +$("inBudget").value });
+        detailBudget: +$("inBudget").value, startCash: Math.round(cash * 100) / 100 });
     });
     $("btnCloseBot").addEventListener("click", function () { $("dlgBot").close(); });
     $("btnCloseReport").addEventListener("click", function () { $("dlgReport").close(); });

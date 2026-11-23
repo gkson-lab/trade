@@ -19,7 +19,7 @@
   function summaryRows(rep, sim) {
     var c = rep.config;
     var rows = [
-      ["Starting bots", 20 * c.mult], ["Population multiplier", c.mult],
+      ["Starting bots", 20 * c.mult], ["Population multiplier", c.mult], ["Starting cash per bot $", c.startCash],
       ["Generations", rep.generations + (rep.forever ? " (endless run)" : "")], ["Trading days per generation", c.daysPerGen],
       ["Trading days simulated", rep.tradingDays], ["Simulated dates", rep.startDate + " to " + rep.endDate],
       ["Seed", c.seed], ["Fitness", c.fitness === "risk" ? "Return - 0.5 x max drawdown" : "Total return"],

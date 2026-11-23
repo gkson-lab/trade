@@ -79,8 +79,9 @@
   var NAME_A = ["Ash", "Brine", "Cobalt", "Dune", "Ember", "Flint", "Gale", "Harbor", "Iris", "Jade", "Kestrel", "Lumen", "Mako", "Nova",
     "Onyx", "Pike", "Quill", "Rook", "Slate", "Talon", "Umber", "Vale", "Wren", "Xeno", "Yarrow", "Zephyr"];
 
-  function Bot(id, gen, genome, parents, rng) {
+  function Bot(id, gen, genome, parents, rng, startCash) {
     this.id = id;
+    this.startCash = startCash > 0 ? startCash : START_CASH;
     this.gen = gen;            // generation this bot was born in
     this.genome = genome;
     this.parents = parents || [];
@@ -94,17 +95,17 @@
   }
 
   Bot.prototype.reset = function () {
-    this.cash = START_CASH;
+    this.cash = this.startCash;
     this.pos = Object.create(null);  // symbol index -> position
     this.nPos = 0;
     this.trades = [];
     this.roundTrips = [];
-    this.equityCurve = [START_CASH];
-    this.intraCurve = [START_CASH];
+    this.equityCurve = [this.startCash];
+    this.intraCurve = [this.startCash];
     this.idxCurve = [];
     this.expCurve = [];               // [gross/equity, net/equity] per sample
-    this.equity = START_CASH;
-    this.peakEquity = START_CASH;
+    this.equity = this.startCash;
+    this.peakEquity = this.startCash;
     this.maxDD = 0;
     this.fees = 0; this.borrowCost = 0; this.divIncome = 0; this.turnover = 0;
     this.closed = 0; this.wins = 0; this.grossWin = 0; this.grossLoss = 0; this.holdDays = 0;
@@ -286,7 +287,7 @@
       var qty = Math.floor(alloc / price);
       // never take more than 5% of a bar's typical volume
       qty = Math.min(qty, Math.floor(m.avgVol[pick[1]] / m.BARS_PER_DAY * 0.05));
-      if (qty < 1 || alloc < 500) { if (!takeShort) break; else continue; }
+      if (qty < 1 || alloc < Math.min(500, this.startCash * 0.005)) { if (!takeShort) break; else continue; }
       if (this.fill(m, pick[1], takeShort ? -qty : qty, takeShort ? "short signal" : "buy signal", Math.round(pick[0] * 1000) / 1000)) { slots--; this.gross += qty * price; }
     }
     return true;
@@ -360,14 +361,14 @@
     rt.forEach(function (t) { if (t.pnl > 0) { cw++; cl = 0; } else { cl++; cw = 0; } if (cw > mcw) mcw = cw; if (cl > mcl) mcl = cl; });
     var gExp = 0, nExp = 0, ne = this.expCurve.length / 2;
     for (i = 0; i < this.expCurve.length; i += 2) { gExp += this.expCurve[i]; nExp += this.expCurve[i + 1]; }
-    var days = Math.max(1, this.equityCurve.length - 1), ret = this.equity / START_CASH - 1;
+    var days = Math.max(1, this.equityCurve.length - 1), ret = this.equity / this.startCash - 1;
     var annRet = Math.pow(Math.max(1e-9, 1 + ret), 252 / days) - 1;
     var best = function (obj, dir) { var bk = "", bv = dir > 0 ? -Infinity : Infinity; for (var k in obj) if ((dir > 0 && obj[k] > bv) || (dir < 0 && obj[k] < bv)) { bv = obj[k]; bk = k; } return bk ? bk + " (" + (bv >= 0 ? "+" : "") + bv.toFixed(0) + ")" : ""; };
     var avgWin = avg(wins, function (t) { return t.pnl; }), avgLoss = avg(losses, function (t) { return t.pnl; });
     var mfe = avg(rt, function (t) { return t.mfe; }), mae = avg(rt, function (t) { return t.mae; });
     var idxRet = ic.length > 1 ? ic[ic.length - 1] / ic[0] - 1 : 0;
     return {
-      ret: ret, pnl: this.equity - START_CASH, equity: this.equity, annReturn: annRet, days: days,
+      ret: ret, pnl: this.equity - this.startCash, equity: this.equity, annReturn: annRet, days: days,
       volatility: mr.sd * ann, sharpe: mr.sd > 0 ? mr.mean / mr.sd * ann : 0, sortino: dd > 0 ? mr.mean / dd * ann : 0,
       calmar: this.maxDD > 0 ? annRet / this.maxDD : 0, maxDD: this.maxDD, ddDurationDays: ddMax / SAMPLES_PER_DAY,
       beta: beta, alpha: (my - beta * mx) * 252 * SAMPLES_PER_DAY, correlation: corr, rSquared: corr * corr,
@@ -384,9 +385,9 @@
       longTrips: longs.length, shortTrips: shorts.length, longPnl: sum(longs, function (t) { return t.pnl; }), shortPnl: sum(shorts, function (t) { return t.pnl; }),
       longWinRate: longs.length ? longs.filter(function (t) { return t.pnl > 0; }).length / longs.length : 0,
       shortWinRate: shorts.length ? shorts.filter(function (t) { return t.pnl > 0; }).length / shorts.length : 0,
-      avgGrossExposure: ne ? gExp / ne : 0, avgNetExposure: ne ? nExp / ne : 0, turnover: this.turnover / START_CASH,
+      avgGrossExposure: ne ? gExp / ne : 0, avgNetExposure: ne ? nExp / ne : 0, turnover: this.turnover / this.startCash,
       fees: this.fees, borrowCost: this.borrowCost, dividends: this.divIncome,
-      feeDrag: this.turnover > 0 ? this.fees / START_CASH : 0,
+      feeDrag: this.turnover > 0 ? this.fees / this.startCash : 0,
       bestTrade: this.bestTrade, worstTrade: this.worstTrade, marginCalls: this.marginCalls,
       symbolsTraded: Object.keys(this.symTrades).length, bestSector: best(this.secPnl, 1), worstSector: best(this.secPnl, -1),
       bestSymbol: best(this.symPnl, 1), worstSymbol: best(this.symPnl, -1)

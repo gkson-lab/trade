@@ -26,7 +26,8 @@
       seed: cfg.seed || 20270104,
       fitness: cfg.fitness || "return",
       maxSymbols: cfg.maxSymbols || 0,
-      detailBudget: cfg.detailBudget || 1500000
+      detailBudget: cfg.detailBudget || 1500000,
+      startCash: cfg.startCash > 0 ? cfg.startCash : 100000
     };
     this.forever = this.cfg.generations === 0;
     this.rng = new T.RNG(this.cfg.seed);
@@ -67,7 +68,7 @@
   Sim.prototype.markAlive = function () { var a = Object.create(null); this.bots.forEach(function (b) { a[b.id] = 1; }); this.alive = a; };
 
   Sim.prototype.newBot = function (genome, parents) {
-    var b = new T.Bot(this.nextId++, this.gen, genome, parents.map(function (p) { return p.name; }), this.rng);
+    var b = new T.Bot(this.nextId++, this.gen, genome, parents.map(function (p) { return p.name; }), this.rng, this.cfg.startCash);
     b.parentIds = parents.map(function (p) { return p.id; });
     this.allBots[b.id] = b;
     var c = b.cfg, imp = genome.importance(), names = T.BOT_CONST.FEATURE_NAMES;
@@ -123,7 +124,7 @@
       if (last) b.closeAll(m, "generation end");
       var L = b.endOfDay(m);
       cur.botDaily.push({ gen: g, day: d + 1, date: date, bot: b.name, equity: r2(L.equity), cash: r2(L.cash), dailyPnl: r2(L.dailyPnl),
-        dailyReturn: L.dailyReturn, genReturn: L.equity / T.BOT_CONST.START_CASH - 1, drawdown: L.drawdown, positions: L.positions,
+        dailyReturn: L.dailyReturn, genReturn: L.equity / b.startCash - 1, drawdown: L.drawdown, positions: L.positions,
         grossExposure: r4(L.grossExposure), netExposure: r4(L.netExposure), trades: L.trades, buys: L.buys, sells: L.sells,
         notional: r2(L.notional), realizedPnl: r2(L.realizedPnl), fees: r2(L.fees), borrowCost: r2(L.borrowCost), dividends: r2(L.dividends),
         indexClose: r2(m.index) });

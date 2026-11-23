@@ -47,6 +47,14 @@ assert.strictEqual(cut.log.generations.length, 2);
 cut.bots.forEach(function (b) { assert.strictEqual(b.nPos, 0, "flat after endNow"); });
 console.log("ok  end-now scores the partial generation and flattens every bot");
 
+[5000, 2500000].forEach(function (cash) {
+  var c = run({ mult: 1, generations: 2, daysPerGen: 2, seed: 4, maxSymbols: SMALL, startCash: cash });
+  c.log.botDaily.filter(function (r) { return r.day === 1; }).forEach(function (r) { assert.ok(Math.abs(r.equity / cash - 1) < 0.2, "equity near start cash"); });
+  c.log.bots.forEach(function (r) { assert.ok(Math.abs(r.finalEquity - cash * (1 + r.returnPct)) < 0.05, "return measured on start cash"); });
+  assert.ok(c.log.trades.length > 0, "bots trade with $" + cash);
+  console.log("ok  starting cash $" + cash.toLocaleString() + ": " + c.log.trades.length + " trades");
+});
+
 var a = run({ mult: 1, generations: 3, daysPerGen: 2, seed: 99, maxSymbols: SMALL });
 var b = run({ mult: 1, generations: 3, daysPerGen: 2, seed: 99, maxSymbols: SMALL });
 assert.strictEqual(a.log.trades.length, b.log.trades.length);

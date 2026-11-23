@@ -14,7 +14,7 @@ var fs = require("fs"), path = require("path"), vm = require("vm");
 var args = {};
 process.argv.slice(2).forEach(function (a, i, arr) { if (a.indexOf("--") === 0) args[a.slice(2)] = arr[i + 1] && arr[i + 1].indexOf("--") !== 0 ? arr[i + 1] : true; });
 if (args.help) {
-  console.log("usage: node cli.js [--mult 1] [--gens 6 | --forever] [--days 10] [--seed N] [--fitness return|risk] [--symbols N]\n" +
+  console.log("usage: node cli.js [--mult 1] [--gens 6 | --forever] [--days 10] [--cash 100000] [--seed N] [--fitness return|risk] [--symbols N]\n" +
     "                   [--max-gens N] [--max-minutes M] [--budget ROWS] [--out out] [--no-master] [--no-combine] [--no-bots]");
   process.exit(0);
 }
@@ -30,12 +30,12 @@ var forever = !!args.forever || args.gens === "0";
 var sim = new T.Sim({
   mult: +(args.mult || 1), generations: forever ? 0 : +(args.gens || 6), daysPerGen: +(args.days || 10),
   seed: +(args.seed || 20270104), fitness: args.fitness || "return", maxSymbols: +(args.symbols || 0),
-  detailBudget: +(args.budget || 400000)
+  detailBudget: +(args.budget || 400000), startCash: +(args.cash || 100000)
 });
 var outDir = path.join(args.out || "out", "run-" + sim.cfg.seed + "-x" + sim.cfg.mult);
 fs.mkdirSync(outDir, { recursive: true });
 var maxGens = args["max-gens"] ? +args["max-gens"] : 0, deadline = args["max-minutes"] ? Date.now() + args["max-minutes"] * 60000 : 0;
-console.log("Box: " + sim.bots.length + " bots, " + sim.market.n + " symbols, " + (forever ? "endless" : sim.cfg.generations) +
+console.log("Box: " + sim.bots.length + " bots with $" + sim.cfg.startCash.toLocaleString() + " each, " + sim.market.n + " symbols, " + (forever ? "endless" : sim.cfg.generations) +
   " generations x " + sim.cfg.daysPerGen + " days -> " + outDir);
 
 var t0 = Date.now();

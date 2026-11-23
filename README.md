@@ -24,7 +24,7 @@ Each bot is a small neural network: 15 market features → 8 hidden units → 1 
 
 The 15 features are short, day and week momentum, distance from the 20-day mean, decayed news sentiment, realized volatility, volume surge, market trend, sector trend, beta, size, RSI, distance from VWAP, earnings yield and short interest.
 
-Every bot starts each generation with $100,000. Trades pay the real costs of trading:
+Every bot starts each generation with $100,000 by default. Change it in **New run → Starting cash per bot**, or with `--cash` on the CLI. Trades pay the real costs of trading:
 
 - bid/ask spread scaled by liquidity
 - size-based price impact
