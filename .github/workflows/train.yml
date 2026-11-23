@@ -11,6 +11,9 @@ on:
       target:
         description: "Target column (blank = the task's default)"
         default: ""
+      max_rows:
+        description: "Use at most this many rows (random sample) so training fits in the runner's 16 GB"
+        default: "3000000"
       release:
         description: "Save the model as a GitHub Release"
         type: boolean
@@ -36,16 +39,16 @@ jobs:
           mkdir -p runs
           for tag in $(gh release list --limit 1000 --json tagName --jq '.[].tagName | select(startswith("run-"))'); do
             mkdir -p "runs/$tag"
-            gh release download "$tag" --dir "runs/$tag" --pattern '*.tar.gz'
-            tar -xzf runs/$tag/*.tar.gz -C "runs/$tag"
-            rm runs/$tag/*.tar.gz
+            gh release download "$tag" --dir "runs/$tag" --pattern 'trade-box-run-*'
+            cat runs/$tag/trade-box-run-* | tar -xz -C "runs/$tag"     # also joins split parts
+            rm runs/$tag/trade-box-run-*
           done
           ls runs | wc -l | xargs echo "runs downloaded:"
           du -sh runs
       - name: Train
         run: |
           T=""; if [ -n "${{ inputs.target }}" ]; then T="--target ${{ inputs.target }}"; fi
-          python3 tools/train_model.py runs/*/run-* --task "${{ inputs.task || 'market' }}" $T \
+          python3 tools/train_model.py runs/*/run-* --task "${{ inputs.task || 'market' }}" $T --max-rows "${{ inputs.max_rows || '3000000' }}" \
             --save model.joblib --predictions predictions.csv | tee report.txt
           gzip -f predictions.csv
       - uses: actions/upload-artifact@v4

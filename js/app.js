@@ -14,7 +14,7 @@
   var S = {
     sim: null, running: false, speed: 15, sel: -1, tf: "5m", filter: "all", sector: -1, query: "",
     feed: "news", acc: 0, lastT: 0, lastList: 0, lastMinis: 0, minis: [], newsSeen: 0, filtered: [], heldCount: null,
-    tradeSeen: {}, cfg: { mult: 1, generations: 6, daysPerGen: 10, seed: 20270104, fitness: "return", detailBudget: 1500000, startCash: 100000 }, dirtyBots: true
+    tradeSeen: {}, cfg: { mult: 1, generations: 6, daysPerGen: 10, seed: 20270104, fitness: "return", detailBudget: 8000000, startCash: 100000 }, dirtyBots: true
   };
 
   var chart = new T.CandleChart($("mainChart"));
@@ -652,7 +652,7 @@
       S.running = false; setPlay();
       mult = S.cfg.mult; popText();
       $("inGens").value = S.cfg.generations || 6; $("inForever").checked = !!S.cfg.forever; $("inGens").disabled = !!S.cfg.forever;
-      $("inBudget").value = String(S.cfg.detailBudget || 1500000); $("inDays").value = S.cfg.daysPerGen; $("inCash").value = S.cfg.startCash || 100000; $("inSeed").value = S.cfg.seed; $("inFit").value = S.cfg.fitness;
+      $("inBudget").value = String(S.cfg.detailBudget || 8000000); $("inDays").value = S.cfg.daysPerGen; $("inCash").value = S.cfg.startCash || 100000; $("inSeed").value = S.cfg.seed; $("inFit").value = S.cfg.fitness;
       $("inMut").value = String(S.cfg.mutation || 1); loadBreeding(S.cfg);
       $("inSamples").value = String(S.cfg.samplesPerDay !== undefined ? S.cfg.samplesPerDay : 150);
       $("newErr").hidden = true;

@@ -170,17 +170,20 @@ Earlier versions also wrote the same rows three more times (two Excel workbooks 
 - **CLI default:** writes each row once, as CSV. The extra copies are opt-in: `--xlsx` and `--bot-folders`.
 - **`--gzip`:** writes `.csv.gz`, about 3x smaller. pandas, `tools/train_model.py` and `tools/combine.js` read it directly.
 - **`--lean`:** gzip plus 50 training samples a day instead of 150. The same 60-day run is **4.7 MB**.
-- **In the app:** New run → *Training samples per day* (Off / 50 / 150 / 400) sets the biggest table. *Trade-level rows kept in memory* caps how much an endless run holds.
+- **In the app:** New run → *Training samples per day* (Off / 50 / 150 / 400) sets the biggest table. *Memory for trade-level data* (about 150 MB, 400 MB or 1.5 GB) caps how much an endless run holds.
+- **Memory is counted in cells** (rows × columns, about 50 bytes each), because a training row has ~90 columns. Per-bot history and retired bots are kept for the last 300 generations (`--history`), so endless runs stay flat in memory. The CLI's generation folders, including `births.csv` for every bot born, always hold everything.
 
 ### Run it in the cloud for free
 
 The repo is public, so **GitHub Actions minutes are free**, on 4-core, 16 GB runners with up to 6 hours per job. Two workflows are ready:
 
-1. **Simulate** (Actions tab → *Simulate* → *Run workflow*). It runs the box for up to 330 minutes, endless by default, with your choice of days, population, breeding and samples.
+1. **Simulate** (Actions tab → *Simulate* → *Run workflow*). It runs the box for 60 minutes by default (up to 330), endless, with your choice of days, population, breeding and samples.
+   - A runner simulates roughly 200 trading days a minute, so an hour is decades of market history: about 1 GB of gzipped data at 50 samples a day. That speed is why the data gets big.
+   - Archives over 1.9 GB are split into parts, which *Train* joins back together.
    - The gzipped data is saved as a workflow artifact for 90 days.
    - It's also saved as a **GitHub Release** `run-N`, which is kept until you delete it; each file can be up to 2 GB.
    - Uncomment the `schedule:` lines in `.github/workflows/simulate.yml` to run it every day automatically.
-2. **Train** (Actions tab → *Train* → *Run workflow*). It downloads every `run-*` release, stacks them, trains one model with `tools/train_model.py`, and saves `model.joblib`, the report and the predictions. Tick *release* to keep them as a `model-N` release.
+2. **Train** (Actions tab → *Train* → *Run workflow*). It downloads every `run-*` release, stacks them, trains one model with `tools/train_model.py`, and saves `model.joblib`, the report and the predictions. Tick *release* to keep them as a `model-N` release. It uses at most 3 million rows (a random sample, `--max-rows`) so training fits the runner's 16 GB.
 
 Free places to go bigger:
 
@@ -225,7 +228,7 @@ Sheets that would pass Excel's row limit continue on a `(2)` sheet.
 | Pedigree | Parent → child edges |
 | Symbols | All 6,138 symbols: price and return since start (split-adjusted), market cap, EPS, P/E, dividend yield and amount paid, short interest, beta, volatility, RSI, ATR, 6-month range, news/earnings/split counts, bot round trips and P/L |
 
-**Endless runs** keep every summary table in full. Trade-level tables keep the newest rows up to a memory budget (New run → *Trade-level rows kept in memory*); past that, the oldest generations' trade-level rows are dropped from memory, and the exports say which ones. The CLI writes every generation's CSVs to disk as it goes, so nothing is lost there.
+**Endless runs** keep the Generations and Genetics tables in full, per-bot tables for the last 300 generations, and trade-level tables up to a memory budget (New run → *Memory for trade-level data*). Past that, the oldest rows are dropped from memory, and the exports say which ones. The CLI writes every generation's CSVs to disk as it goes, so nothing is lost there.
 
 ## Files
 

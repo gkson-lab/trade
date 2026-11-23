@@ -10,8 +10,8 @@ on:
         description: "Generations (0 = keep going until the time limit)"
         default: "0"
       minutes:
-        description: "Stop after this many minutes (GitHub allows up to 360 per job)"
-        default: "330"
+        description: "Stop after this many minutes (up to 330). A GitHub runner simulates ~200 trading days a minute, ~15 MB of gzipped data at 150 samples a day"
+        default: "60"
       days:
         description: "Trading days per generation"
         default: "10"
@@ -22,8 +22,8 @@ on:
         description: "Breeding preset (node cli.js --list-breeding shows them all)"
         default: "ranked"
       samples:
-        description: "Training samples per day"
-        default: "150"
+        description: "Training samples per day (the biggest table; 50 keeps files small)"
+        default: "50"
       seed:
         description: "Seed (blank = use the run number)"
         default: ""
@@ -50,28 +50,32 @@ jobs:
       - name: Run the box
         env:
           GENS: ${{ inputs.generations || '0' }}
-          MINUTES: ${{ inputs.minutes || '330' }}
+          MINUTES: ${{ inputs.minutes || '60' }}
           DAYS: ${{ inputs.days || '10' }}
           MULT: ${{ inputs.mult || '1' }}
           BREEDING: ${{ inputs.breeding || 'ranked' }}
-          SAMPLES: ${{ inputs.samples || '150' }}
+          SAMPLES: ${{ inputs.samples || '50' }}
           SEED: ${{ inputs.seed || github.run_number }}
         run: |
           if [ "$GENS" = "0" ]; then G="--forever"; else G="--gens $GENS"; fi
           node cli.js $G --max-minutes "$MINUTES" --days "$DAYS" --mult "$MULT" --breeding "$BREEDING" \
-            --samples "$SAMPLES" --seed "$SEED" --gzip --budget 200000 --out out
-          tar -czf "trade-box-run-${{ github.run_number }}.tar.gz" -C out .
-          du -sh out "trade-box-run-${{ github.run_number }}.tar.gz"
+            --samples "$SAMPLES" --seed "$SEED" --gzip --out out
+          mkdir -p dist-run
+          tar -czf "dist-run/trade-box-run-${{ github.run_number }}.tar.gz" -C out .
+          # GitHub release files max out at 2 GB: split big archives into 1.9 GB parts (train.yml joins them)
+          f="dist-run/trade-box-run-${{ github.run_number }}.tar.gz"
+          if [ "$(stat -c %s "$f")" -gt 1900000000 ]; then split -b 1900m -d "$f" "$f.part-" && rm "$f"; fi
+          du -sh out dist-run/*
       - uses: actions/upload-artifact@v4
         with:
           name: trade-box-run-${{ github.run_number }}
-          path: trade-box-run-${{ github.run_number }}.tar.gz
+          path: dist-run/
           retention-days: 90
       - name: Save as a release
         if: ${{ github.event_name == 'schedule' || inputs.release }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "run-${{ github.run_number }}" "trade-box-run-${{ github.run_number }}.tar.gz" \
+          gh release create "run-${{ github.run_number }}" dist-run/* \
             --title "Simulation run ${{ github.run_number }}" \
             --notes "Seed ${{ inputs.seed || github.run_number }}, breeding ${{ inputs.breeding || 'ranked' }}, ${{ inputs.days || '10' }} days per generation, x${{ inputs.mult || '1' }} population. Gzipped CSVs; see docs/DATASET.md."

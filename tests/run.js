@@ -220,3 +220,11 @@ Object.keys(tsim.allBots).forEach(function (k) {
   if (b.traits.contrarian === "Contrarian") assert.strictEqual(b.cfg.fmult[0], -1, "contrarian flips momentum");
 });
 console.log("ok  " + T.TRAITS.length + " traits; specialists stayed in their sectors (" + specialistTrips + " trades), trading hours respected (" + morning + " morning, " + afternoon + " afternoon entries)");
+
+// endless runs keep per-bot history to a window, so memory stays flat
+var longRun = run({ mult: 1, generations: 40, daysPerGen: 1, seed: 71, maxSymbols: SMALL, historyGens: 10, samplesPerDay: 20 });
+assert.ok(Object.keys(longRun.allBots).length <= 20 * 13, "retired bots pruned (" + Object.keys(longRun.allBots).length + ")");
+assert.ok(longRun.log.bots.every(function (r) { return r.gen > 30; }), "per-bot rows only for the last 10 generations");
+assert.strictEqual(longRun.log.generations.length, 40, "generation table kept in full");
+assert.ok(longRun.pedigree().length > 0 && longRun.familyTree().length > 0 && longRun.profiles().length > 0, "pedigree and profiles still build");
+console.log("ok  history window: " + Object.keys(longRun.allBots).length + " bots in memory after 40 generations, full generation table");

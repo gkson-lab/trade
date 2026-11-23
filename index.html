@@ -212,13 +212,13 @@
         <option value="400">400 stocks a day (big model, big files)</option>
       </select>
       <span class="hint">Stocks the bots hold and stocks with news that day are always sampled too. This is the biggest table in the training data.</span></div>
-    <div class="field"><label class="label" for="inBudget">Trade-level rows kept in memory</label>
+    <div class="field"><label class="label" for="inBudget">Memory for trade-level data</label>
       <select class="select full" id="inBudget">
-        <option value="500000">500,000 (phones)</option>
-        <option value="1500000" selected>1.5 million</option>
-        <option value="4000000">4 million (desktop, lots of RAM)</option>
+        <option value="3000000">About 150 MB (phones)</option>
+        <option value="8000000" selected>About 400 MB</option>
+        <option value="30000000">About 1.5 GB (desktop with plenty of memory)</option>
       </select>
-      <p class="hint">Long and endless runs drop the oldest generations' trade-level rows once this fills up. Generation, bot, genetics, market and genome tables are always kept in full. Download the generation CSVs as you go to keep everything, or use the CLI, which writes every generation to disk.</p>
+      <p class="hint">Long and endless runs drop the oldest generations' trade-level rows once this fills up, and keep per-bot history for the last 300 generations. The generation and genetics tables are always kept in full. To keep everything, download the generation CSVs as you go, or use the CLI or the cloud workflow, which write every generation to disk.</p>
     </div>
     <p class="err" id="newErr" role="alert" hidden></p>
     <div class="dlg-actions">

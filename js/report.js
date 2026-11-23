@@ -35,6 +35,7 @@
       ["Total fees $", r2(rep.totalFees)],
       ["Best single run", rep.best ? rep.best.bot + " (gen " + rep.best.gen + ", " + (rep.best.returnPct * 100).toFixed(2) + "%)" : ""],
       ["Detail rows dropped from memory", rep.trimmedThrough ? "generations 1-" + rep.trimmedThrough + " (summaries kept)" : "none"],
+      ["Per-bot history kept in memory", rep.historyFrom ? "generations " + (rep.historyFrom + 1) + " onward (the CLI's gen folders hold every generation)" : "all generations"],
       ["Wall-clock seconds", r2(rep.wallSeconds)],
       ["Note", "Fictional market. Symbols are real US listings; every price after the start is simulated."]
     ];
@@ -205,7 +206,7 @@
 
   var GEN_TABLES = [["bots", "bots"], ["trades", "trades"], ["round-trips", "roundTrips"], ["bot-daily", "botDaily"], ["equity-intraday", "equityIntraday"],
     ["positions", "positions"], ["market-daily", "market"], ["sector-daily", "sectors"], ["news", "news"], ["generation", "generations"], ["genetics", "genetics"],
-    ["market-samples", "mlSamples"]];
+    ["market-samples", "mlSamples"], ["births", "births"]];
 
   /* Rows of a single generation, keyed by CSV file name. */
   function generationFiles(rows) {
@@ -220,7 +221,7 @@
 
   function generationsZip(sim, XLSX, type) {
     var L = sim.log, files = [], by = {};
-    GEN_TABLES.forEach(function (t) { by[t[1]] = groupBy(L[t[1]], "gen"); });
+    GEN_TABLES.forEach(function (t) { by[t[1]] = t[1] === "births" ? groupBy(L.genomes, "born") : groupBy(L[t[1]], "gen"); });
     L.generations.forEach(function (g) {
       var rows = { generation: [g] };
       GEN_TABLES.forEach(function (t) { if (t[1] !== "generations") rows[t[1]] = by[t[1]][g.gen] || []; });

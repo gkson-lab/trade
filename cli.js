@@ -10,7 +10,8 @@
  *   --bot-folders   bots/<name>/*.csv, the same rows split per bot
  * Size: --gzip writes .csv.gz (about 3x smaller; pandas and tools/combine.js read it directly),
  *       --lean = --gzip plus 50 training samples a day instead of 150, --samples N sets that directly.
- * Also: --budget <rows kept in memory>. */
+ * Memory: --budget <cells kept in memory, ~50 bytes each; default 6,000,000>, --history <generations of per-bot history
+ *   kept in memory, default 300>. The gen folders on disk always hold everything, including births.csv (every bot born). */
 "use strict";
 var fs = require("fs"), path = require("path"), vm = require("vm");
 
@@ -18,7 +19,7 @@ var args = {};
 process.argv.slice(2).forEach(function (a, i, arr) { if (a.indexOf("--") === 0) args[a.slice(2)] = arr[i + 1] && arr[i + 1].indexOf("--") !== 0 ? arr[i + 1] : true; });
 if (args.help) {
   console.log("usage: node cli.js [--mult 1] [--gens 6 | --forever] [--days 10] [--cash 100000] [--breeding PRESET | --pool P --pairing Q --brackets B ...] [--list-breeding] [--mutation 1] [--samples 150] [--seed N] [--fitness return|risk] [--symbols N]\n" +
-    "                   [--max-gens N] [--max-minutes M] [--budget ROWS] [--out out] [--gzip] [--lean] [--xlsx] [--bot-folders]");
+    "                   [--max-gens N] [--max-minutes M] [--budget CELLS] [--history GENS] [--out out] [--gzip] [--lean] [--xlsx] [--bot-folders]");
   process.exit(0);
 }
 
@@ -47,7 +48,7 @@ var sim;
 try { sim = new T.Sim({
   mult: +(args.mult || 1), generations: forever ? 0 : +(args.gens || 6), daysPerGen: +(args.days || 10),
   seed: +(args.seed || 20270104), fitness: args.fitness || "return", maxSymbols: +(args.symbols || 0),
-  detailBudget: +(args.budget || 400000), startCash: +(args.cash || 100000),
+  detailBudget: +(args.budget || 6000000), historyGens: +(args.history || 300), startCash: +(args.cash || 100000),
   breeding: args.breeding || (args.pool || args.pairing ? "custom" : "ranked"), mutation: +(args.mutation || 1),
   breedPool: args.pool, breedPairing: args.pairing, brackets: args.brackets,
   levels: args.levels ? String(args.levels).split(",").map(Number) : undefined, threshold: args.threshold, threshold2: args.threshold2,

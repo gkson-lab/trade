@@ -497,13 +497,13 @@ th { color: var(--muted); font-weight: 500; background: var(--card); position: s
         <option value="400">400 stocks a day (big model, big files)</option>
       </select>
       <span class="hint">Stocks the bots hold and stocks with news that day are always sampled too. This is the biggest table in the training data.</span></div>
-    <div class="field"><label class="label" for="inBudget">Trade-level rows kept in memory</label>
+    <div class="field"><label class="label" for="inBudget">Memory for trade-level data</label>
       <select class="select full" id="inBudget">
-        <option value="500000">500,000 (phones)</option>
-        <option value="1500000" selected>1.5 million</option>
-        <option value="4000000">4 million (desktop, lots of RAM)</option>
+        <option value="3000000">About 150 MB (phones)</option>
+        <option value="8000000" selected>About 400 MB</option>
+        <option value="30000000">About 1.5 GB (desktop with plenty of memory)</option>
       </select>
-      <p class="hint">Long and endless runs drop the oldest generations' trade-level rows once this fills up. Generation, bot, genetics, market and genome tables are always kept in full. Download the generation CSVs as you go to keep everything, or use the CLI, which writes every generation to disk.</p>
+      <p class="hint">Long and endless runs drop the oldest generations' trade-level rows once this fills up, and keep per-bot history for the last 300 generations. The generation and genetics tables are always kept in full. To keep everything, download the generation CSVs as you go, or use the CLI or the cloud workflow, which write every generation to disk.</p>
     </div>
     <p class="err" id="newErr" role="alert" hidden></p>
     <div class="dlg-actions">
@@ -2461,7 +2461,9 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
  *
  * Data: summary tables (generations, genetics, bots, genomes, market/sector daily) are kept for the whole run.
  * Detail tables (trades, round trips, bot daily ledger, intraday equity, positions, news) are kept up to
- * cfg.detailBudget rows; past that the oldest generations' detail is dropped from memory. Every generation's
+ * cfg.detailBudget cells (rows x columns, roughly 50 bytes each in memory); past that the oldest generations'
+ * detail is dropped from memory. Per-bot summary tables (bots, genomes, market and sector days) and retired bots
+ * are kept for the last cfg.historyGens generations. Generations and genetics are kept in full. Every generation's
  * rows are also handed to listeners ("generation" event, d.rows) so the CLI can write them to disk as it goes.
  */
 (function (T) {
@@ -2482,7 +2484,8 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       seed: cfg.seed || 20270104,
       fitness: cfg.fitness || "return",
       maxSymbols: cfg.maxSymbols || 0,
-      detailBudget: cfg.detailBudget || 1500000,
+      detailBudget: cfg.detailBudget || 8000000,
+      historyGens: cfg.historyGens > 0 ? cfg.historyGens : 300,
       startCash: cfg.startCash > 0 ? cfg.startCash : 100000,
       breeding: cfg.breeding || "ranked",
       breedPool: cfg.breedPool, breedPairing: cfg.breedPairing, brackets: cfg.brackets, levels: cfg.levels,
@@ -2664,6 +2667,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       var b = r.bot, s = r.s, c = b.cfg;
       b.history.push({ gen: g, ret: s.ret, rank: k + 1 });
       b.lastRank = k + 1;
+      b.lastGen = g;
       b.lastReturn = s.ret;
       botRows.push({
         gen: g, rank: k + 1, id: b.id, bot: b.name, born: b.gen, age: b.age, parents: b.parents.join(" + "), style: b.style,
@@ -2751,7 +2755,8 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     this.regimeDays = [0, 0, 0, 0];
 
     // move this generation's rows into the run log
-    var genRows = { generation: [summary], genetics: [this.log.genetics[this.log.genetics.length - 1]], bots: botRows, mlSamples: cur.mlSamples,
+    var born = this.log.genomes.filter(function (r) { return r.born === g; });
+    var genRows = { generation: [summary], genetics: [this.log.genetics[this.log.genetics.length - 1]], bots: botRows, mlSamples: cur.mlSamples, births: born,
       trades: cur.trades, roundTrips: cur.roundTrips, botDaily: cur.botDaily, equityIntraday: cur.equityIntraday,
       positions: cur.positions, news: cur.news, market: cur.market, sectors: cur.sectors };
     push(this.log.bots, botRows); push(this.log.market, cur.market); push(this.log.sectors, cur.sectors);
@@ -2775,18 +2780,28 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
 
   /* Keep detail tables under the row budget by dropping the oldest generations' detail. */
   Sim.prototype.trim = function () {
-    var log = this.log, total = 0, self = this;
-    DETAIL.forEach(function (k) { total += log[k].length; });
+    var log = this.log, total = 0, self = this, cols = {};
+    // count cells, not rows: a training row has ~90 columns, a bot-day row ~20
+    DETAIL.forEach(function (k) { cols[k] = log[k].length ? Object.keys(log[k][log[k].length - 1]).length : 0; total += log[k].length * cols[k]; });
     while (total > this.cfg.detailBudget && this.trimmedThrough < this.gen - 1) {
       var g = this.trimmedThrough + 1;
       DETAIL.forEach(function (k) {
         var before = log[k].length;
         log[k] = log[k].filter(function (r) { return r.gen > g; });   // training samples can finish labelling a generation late
-        total -= before - log[k].length;
+        total -= (before - log[k].length) * cols[k];
       });
       this.trimmedThrough = g;
     }
     if (this.trimmedThrough) this.emit("trimmed", this.trimmedThrough);
+    // long runs: keep per-bot history and retired bots for the last historyGens generations only
+    var cut = this.gen - this.cfg.historyGens;
+    if (cut > (this.historyFrom || 0)) {
+      this.historyFrom = cut;
+      ["bots", "market", "sectors"].forEach(function (k) { if (log[k].length && log[k][0].gen <= cut) log[k] = log[k].filter(function (r) { return r.gen > cut; }); });
+      if (log.genomes.length && log.genomes[0].born <= cut) log.genomes = log.genomes.filter(function (r) { return r.born > cut || self.alive[r.id]; });
+      for (var id in this.allBots) { var b = this.allBots[id]; if (b.gen <= cut && !this.alive[id] && b.lastGen !== undefined && b.lastGen <= cut) delete this.allBots[id]; }
+      this.kinMemo.clear();
+    }
     return self;
   };
 
@@ -2928,7 +2943,8 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     Object.keys(all).map(Number).sort(function (a, b) { return a - b; }).forEach(function (id) {
       var b = all[id];
       (b.parentIds || []).forEach(function (p, k) {
-        out.push({ parentId: p, parent: all[p].name, parentHouse: all[p].house, childId: id, child: b.name, childHouse: b.house, born: b.gen, role: k ? "B" : "A (house)" });
+        var pp = all[p];
+        out.push({ parentId: p, parent: pp ? pp.name : "(older than kept history)", parentHouse: pp ? pp.house : "", childId: id, child: b.name, childHouse: b.house, born: b.gen, role: k ? "B" : "A (house)" });
       });
     });
     return out;
@@ -3014,7 +3030,8 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     return {
       config: this.cfg, forever: this.forever,
       generations: gens.length, botRuns: bots.length, uniqueBots: this.log.genomes.length,
-      tradingDays: mkt.length, startDate: mkt.length ? mkt[0].date : "", endDate: mkt.length ? mkt[mkt.length - 1].date : "",
+      tradingDays: this.market.day, startDate: this.market.dateStr(0), endDate: this.market.day ? this.market.dateStr(this.market.day - 1) : "",
+      historyFrom: this.historyFrom || 0,
       avgReturn: mean(allRet), medianReturn: T.stat.median(allRet),
       avgSharpe: mean(bots.map(function (b) { return b.sharpe; })), avgSortino: mean(bots.map(function (b) { return b.sortino; })),
       avgAlpha: mean(bots.map(function (b) { return b.alphaAnn; })), avgBeta: mean(bots.map(function (b) { return b.beta; })),
@@ -3079,6 +3096,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       ["Total fees $", r2(rep.totalFees)],
       ["Best single run", rep.best ? rep.best.bot + " (gen " + rep.best.gen + ", " + (rep.best.returnPct * 100).toFixed(2) + "%)" : ""],
       ["Detail rows dropped from memory", rep.trimmedThrough ? "generations 1-" + rep.trimmedThrough + " (summaries kept)" : "none"],
+      ["Per-bot history kept in memory", rep.historyFrom ? "generations " + (rep.historyFrom + 1) + " onward (the CLI's gen folders hold every generation)" : "all generations"],
       ["Wall-clock seconds", r2(rep.wallSeconds)],
       ["Note", "Fictional market. Symbols are real US listings; every price after the start is simulated."]
     ];
@@ -3249,7 +3267,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
 
   var GEN_TABLES = [["bots", "bots"], ["trades", "trades"], ["round-trips", "roundTrips"], ["bot-daily", "botDaily"], ["equity-intraday", "equityIntraday"],
     ["positions", "positions"], ["market-daily", "market"], ["sector-daily", "sectors"], ["news", "news"], ["generation", "generations"], ["genetics", "genetics"],
-    ["market-samples", "mlSamples"]];
+    ["market-samples", "mlSamples"], ["births", "births"]];
 
   /* Rows of a single generation, keyed by CSV file name. */
   function generationFiles(rows) {
@@ -3264,7 +3282,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
 
   function generationsZip(sim, XLSX, type) {
     var L = sim.log, files = [], by = {};
-    GEN_TABLES.forEach(function (t) { by[t[1]] = groupBy(L[t[1]], "gen"); });
+    GEN_TABLES.forEach(function (t) { by[t[1]] = t[1] === "births" ? groupBy(L.genomes, "born") : groupBy(L[t[1]], "gen"); });
     L.generations.forEach(function (g) {
       var rows = { generation: [g] };
       GEN_TABLES.forEach(function (t) { if (t[1] !== "generations") rows[t[1]] = by[t[1]][g.gen] || []; });
@@ -3571,7 +3589,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
   var S = {
     sim: null, running: false, speed: 15, sel: -1, tf: "5m", filter: "all", sector: -1, query: "",
     feed: "news", acc: 0, lastT: 0, lastList: 0, lastMinis: 0, minis: [], newsSeen: 0, filtered: [], heldCount: null,
-    tradeSeen: {}, cfg: { mult: 1, generations: 6, daysPerGen: 10, seed: 20270104, fitness: "return", detailBudget: 1500000, startCash: 100000 }, dirtyBots: true
+    tradeSeen: {}, cfg: { mult: 1, generations: 6, daysPerGen: 10, seed: 20270104, fitness: "return", detailBudget: 8000000, startCash: 100000 }, dirtyBots: true
   };
 
   var chart = new T.CandleChart($("mainChart"));
@@ -4209,7 +4227,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       S.running = false; setPlay();
       mult = S.cfg.mult; popText();
       $("inGens").value = S.cfg.generations || 6; $("inForever").checked = !!S.cfg.forever; $("inGens").disabled = !!S.cfg.forever;
-      $("inBudget").value = String(S.cfg.detailBudget || 1500000); $("inDays").value = S.cfg.daysPerGen; $("inCash").value = S.cfg.startCash || 100000; $("inSeed").value = S.cfg.seed; $("inFit").value = S.cfg.fitness;
+      $("inBudget").value = String(S.cfg.detailBudget || 8000000); $("inDays").value = S.cfg.daysPerGen; $("inCash").value = S.cfg.startCash || 100000; $("inSeed").value = S.cfg.seed; $("inFit").value = S.cfg.fitness;
       $("inMut").value = String(S.cfg.mutation || 1); loadBreeding(S.cfg);
       $("inSamples").value = String(S.cfg.samplesPerDay !== undefined ? S.cfg.samplesPerDay : 150);
       $("newErr").hidden = true;

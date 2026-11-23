@@ -9,7 +9,9 @@
  *
  * Data: summary tables (generations, genetics, bots, genomes, market/sector daily) are kept for the whole run.
  * Detail tables (trades, round trips, bot daily ledger, intraday equity, positions, news) are kept up to
- * cfg.detailBudget rows; past that the oldest generations' detail is dropped from memory. Every generation's
+ * cfg.detailBudget cells (rows x columns, roughly 50 bytes each in memory); past that the oldest generations'
+ * detail is dropped from memory. Per-bot summary tables (bots, genomes, market and sector days) and retired bots
+ * are kept for the last cfg.historyGens generations. Generations and genetics are kept in full. Every generation's
  * rows are also handed to listeners ("generation" event, d.rows) so the CLI can write them to disk as it goes.
  */
 (function (T) {
@@ -30,7 +32,8 @@
       seed: cfg.seed || 20270104,
       fitness: cfg.fitness || "return",
       maxSymbols: cfg.maxSymbols || 0,
-      detailBudget: cfg.detailBudget || 1500000,
+      detailBudget: cfg.detailBudget || 8000000,
+      historyGens: cfg.historyGens > 0 ? cfg.historyGens : 300,
       startCash: cfg.startCash > 0 ? cfg.startCash : 100000,
       breeding: cfg.breeding || "ranked",
       breedPool: cfg.breedPool, breedPairing: cfg.breedPairing, brackets: cfg.brackets, levels: cfg.levels,
@@ -212,6 +215,7 @@
       var b = r.bot, s = r.s, c = b.cfg;
       b.history.push({ gen: g, ret: s.ret, rank: k + 1 });
       b.lastRank = k + 1;
+      b.lastGen = g;
       b.lastReturn = s.ret;
       botRows.push({
         gen: g, rank: k + 1, id: b.id, bot: b.name, born: b.gen, age: b.age, parents: b.parents.join(" + "), style: b.style,
@@ -299,7 +303,8 @@
     this.regimeDays = [0, 0, 0, 0];
 
     // move this generation's rows into the run log
-    var genRows = { generation: [summary], genetics: [this.log.genetics[this.log.genetics.length - 1]], bots: botRows, mlSamples: cur.mlSamples,
+    var born = this.log.genomes.filter(function (r) { return r.born === g; });
+    var genRows = { generation: [summary], genetics: [this.log.genetics[this.log.genetics.length - 1]], bots: botRows, mlSamples: cur.mlSamples, births: born,
       trades: cur.trades, roundTrips: cur.roundTrips, botDaily: cur.botDaily, equityIntraday: cur.equityIntraday,
       positions: cur.positions, news: cur.news, market: cur.market, sectors: cur.sectors };
     push(this.log.bots, botRows); push(this.log.market, cur.market); push(this.log.sectors, cur.sectors);
@@ -323,18 +328,28 @@
 
   /* Keep detail tables under the row budget by dropping the oldest generations' detail. */
   Sim.prototype.trim = function () {
-    var log = this.log, total = 0, self = this;
-    DETAIL.forEach(function (k) { total += log[k].length; });
+    var log = this.log, total = 0, self = this, cols = {};
+    // count cells, not rows: a training row has ~90 columns, a bot-day row ~20
+    DETAIL.forEach(function (k) { cols[k] = log[k].length ? Object.keys(log[k][log[k].length - 1]).length : 0; total += log[k].length * cols[k]; });
     while (total > this.cfg.detailBudget && this.trimmedThrough < this.gen - 1) {
       var g = this.trimmedThrough + 1;
       DETAIL.forEach(function (k) {
         var before = log[k].length;
         log[k] = log[k].filter(function (r) { return r.gen > g; });   // training samples can finish labelling a generation late
-        total -= before - log[k].length;
+        total -= (before - log[k].length) * cols[k];
       });
       this.trimmedThrough = g;
     }
     if (this.trimmedThrough) this.emit("trimmed", this.trimmedThrough);
+    // long runs: keep per-bot history and retired bots for the last historyGens generations only
+    var cut = this.gen - this.cfg.historyGens;
+    if (cut > (this.historyFrom || 0)) {
+      this.historyFrom = cut;
+      ["bots", "market", "sectors"].forEach(function (k) { if (log[k].length && log[k][0].gen <= cut) log[k] = log[k].filter(function (r) { return r.gen > cut; }); });
+      if (log.genomes.length && log.genomes[0].born <= cut) log.genomes = log.genomes.filter(function (r) { return r.born > cut || self.alive[r.id]; });
+      for (var id in this.allBots) { var b = this.allBots[id]; if (b.gen <= cut && !this.alive[id] && b.lastGen !== undefined && b.lastGen <= cut) delete this.allBots[id]; }
+      this.kinMemo.clear();
+    }
     return self;
   };
 
@@ -476,7 +491,8 @@
     Object.keys(all).map(Number).sort(function (a, b) { return a - b; }).forEach(function (id) {
       var b = all[id];
       (b.parentIds || []).forEach(function (p, k) {
-        out.push({ parentId: p, parent: all[p].name, parentHouse: all[p].house, childId: id, child: b.name, childHouse: b.house, born: b.gen, role: k ? "B" : "A (house)" });
+        var pp = all[p];
+        out.push({ parentId: p, parent: pp ? pp.name : "(older than kept history)", parentHouse: pp ? pp.house : "", childId: id, child: b.name, childHouse: b.house, born: b.gen, role: k ? "B" : "A (house)" });
       });
     });
     return out;
@@ -562,7 +578,8 @@
     return {
       config: this.cfg, forever: this.forever,
       generations: gens.length, botRuns: bots.length, uniqueBots: this.log.genomes.length,
-      tradingDays: mkt.length, startDate: mkt.length ? mkt[0].date : "", endDate: mkt.length ? mkt[mkt.length - 1].date : "",
+      tradingDays: this.market.day, startDate: this.market.dateStr(0), endDate: this.market.day ? this.market.dateStr(this.market.day - 1) : "",
+      historyFrom: this.historyFrom || 0,
       avgReturn: mean(allRet), medianReturn: T.stat.median(allRet),
       avgSharpe: mean(bots.map(function (b) { return b.sharpe; })), avgSortino: mean(bots.map(function (b) { return b.sortino; })),
       avgAlpha: mean(bots.map(function (b) { return b.alphaAnn; })), avgBeta: mean(bots.map(function (b) { return b.beta; })),

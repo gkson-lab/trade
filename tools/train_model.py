@@ -61,6 +61,7 @@ def main():
     ap.add_argument("--target", help="target column (default depends on --task)")
     ap.add_argument("--save", help="write the fitted model here (joblib)")
     ap.add_argument("--predictions", help="write test-set predictions to this CSV")
+    ap.add_argument("--max-rows", type=int, default=0, help="use a random sample of at most this many rows (0 = all)")
     a = ap.parse_args()
 
     table, default_target, date_col = TABLES[a.task]
@@ -69,6 +70,9 @@ def main():
     if target not in df:
         sys.exit("Column %s not found. Targets available: %s" % (target, ", ".join(c for c in df if c.startswith("y_"))))
     df = df[pd.to_numeric(df[target], errors="coerce").notna()].copy()
+    if a.max_rows and len(df) > a.max_rows:
+        print("Sampling %d of %d rows (--max-rows)." % (a.max_rows, len(df)))
+        df = df.sample(a.max_rows, random_state=0)
     df[target] = pd.to_numeric(df[target])
 
     if a.task == "bots":
