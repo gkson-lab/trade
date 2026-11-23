@@ -178,7 +178,7 @@ Earlier versions also wrote the same rows three more times (two Excel workbooks 
 The repo is public, so **GitHub Actions minutes are free**, on 4-core, 16 GB runners with up to 6 hours per job. Two workflows are ready:
 
 1. **Simulate** (Actions tab → *Simulate* → *Run workflow*). It runs the box for 60 minutes by default (up to 330), endless, with your choice of days, population, breeding and samples.
-   - A runner simulates roughly 200 trading days a minute, so an hour is decades of market history: about 1 GB of gzipped data at 50 samples a day. That speed is why the data gets big.
+   - A runner simulates roughly 200 trading days a minute, so an hour is decades of market history: about 650 MB of gzipped data at 50 samples a day (measured). That speed is why the data gets big.
    - Archives over 1.9 GB are split into parts, which *Train* joins back together.
    - The gzipped data is saved as a workflow artifact for 90 days.
    - It's also saved as a **GitHub Release** `run-N`, which is kept until you delete it; each file can be up to 2 GB.
