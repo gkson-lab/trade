@@ -333,7 +333,8 @@
     var kids = Object.keys(all).map(function (k) { return all[k]; }).filter(function (x) { return x.parentIds.indexOf(b.id) >= 0; });
     body.appendChild(el("p", "hint", "House " + b.house + ", generation depth " + b.lineageDepth + ". " +
       (pa ? "Parents: " + pa.name + " (" + pa.house + ", ranked " + b.breedMeta.rankA + ") and " + pb.name + " (" + pb.house + ", ranked " + b.breedMeta.rankB + "), paired by " +
-        ((T.BREEDING_RULES.filter(function (x) { return x.key === b.breedMeta.rule; })[0] || {}).name || b.breedMeta.rule) + ". " : "Founder of the house. ") +
+        (b.breedMeta.label || b.breedMeta.rule) + (b.breedMeta.bracketA ? " (brackets: " + b.breedMeta.bracketA + " and " + b.breedMeta.bracketB + ")" : "") +
+        ". Parents' returns: " + pct(b.breedMeta.retA) + " and " + pct(b.breedMeta.retB) + ". " + (b.breedMeta.note ? "Note: " + b.breedMeta.note + ". " : "") : "Founder of the house. ") +
       (gps.length ? "Grandparents: " + gps.join(", ") + ". " : "") +
       (kids.length ? "Children: " + kids.map(function (x) { return x.name; }).join(", ") + ". " : "No children yet. ") +
       "Inbreeding coefficient " + b.inbreeding.toFixed(3) + (b.inbreeding >= 0.25 ? " (as close as full siblings' children)" : b.inbreeding >= 0.0625 ? " (as close as first cousins' children or closer)" : "") + "."));
@@ -531,6 +532,86 @@
     });
   }
 
+  /* ---------- breeding settings ---------- */
+  var BR = T.Breeding, PRESET_GROUPS = [
+    ["Winners and losers", ["ranked", "winners", "losers", "assortative", "disassortative"]],
+    ["By profit", ["profitable", "unprofitable", "beatIndex", "above", "between", "topPct", "bottomPct"]],
+    ["By bracket", ["sameBracket", "crossBracket", "mirrorBracket", "topBrackets", "profitLevels"]],
+    ["Other", ["random", "tournament", "roulette", "outbreed", "inbreed"]],
+    ["Your own", ["custom"]]
+  ];
+  function fillSelect(id, list) { var sel = $(id); list.forEach(function (x) { var o = el("option", null, x.name); o.value = x.key; sel.appendChild(o); }); }
+  function wireBreeding() {
+    PRESET_GROUPS.forEach(function (g) {
+      var og = document.createElement("optgroup"); og.label = g[0];
+      g[1].forEach(function (k) { var p = BR.find(BR.PRESETS, k); if (p) { var o = el("option", null, p.name); o.value = k; og.appendChild(o); } });
+      $("inBreed").appendChild(og);
+    });
+    fillSelect("inPool", BR.POOLS); fillSelect("inPair", BR.PAIRINGS); fillSelect("inBrackets", BR.BRACKETS);
+    $("inBreed").addEventListener("change", function () { if (this.value !== "custom") loadBreeding({ breeding: this.value }); else refreshBreeding(); });
+    ["inPool", "inPair", "inBrackets", "inThresh", "inThresh2", "inPct", "inLevels"].forEach(function (id) {
+      $(id).addEventListener(id === "inLevels" || /Thresh|Pct/.test(id) ? "input" : "change", function () { $("inBreed").value = "custom"; refreshBreeding(); });
+    });
+    $("allowedBoxes").addEventListener("change", function () { $("inBreed").value = "custom"; refreshBreeding(); });
+    loadBreeding(S.cfg);
+  }
+  function loadBreeding(cfg) {
+    var s;
+    try { s = BR.normalize(cfg); } catch (e) { s = BR.normalize({}); }
+    $("inBreed").value = s.preset; $("inPool").value = s.pool; $("inPair").value = s.pairing; $("inBrackets").value = s.brackets;
+    $("inThresh").value = s.threshold; $("inThresh2").value = s.threshold2; $("inPct").value = s.pct; $("inLevels").value = s.levels.join(", ");
+    renderAllowed(s, s.allowed);
+    refreshBreeding();
+  }
+  function renderAllowed(s, checked) {
+    var box = $("allowedBoxes"), labels = BR.bracketLabels(s);
+    clear(box);
+    labels.forEach(function (lab, k) {
+      var l = el("label", "check"), c = el("input"); c.type = "checkbox"; c.value = k; c.checked = checked.indexOf(k) >= 0;
+      l.appendChild(c); l.appendChild(document.createTextNode(" " + lab)); box.appendChild(l);
+    });
+  }
+  function readBreeding() {
+    var levels = $("inLevels").value.split(/[,\s]+/).filter(function (x) { return x !== ""; }).map(Number);
+    var out = { breeding: $("inBreed").value, breedPool: $("inPool").value, breedPairing: $("inPair").value, brackets: $("inBrackets").value,
+      levels: levels, threshold: $("inThresh").value, threshold2: $("inThresh2").value, pct: +$("inPct").value,
+      allowed: Array.prototype.filter.call($("allowedBoxes").querySelectorAll("input"), function (c) { return c.checked; }).map(function (c) { return +c.value; }) };
+    if (out.brackets === "profit" && (!levels.length || levels.some(function (x) { return !isFinite(x); }))) out.error = "Profit levels must be numbers separated by commas, like -2, 0, 2.";
+    else if (out.breedPool === "brackets" && !out.allowed.length) out.error = "Tick at least one bracket that can breed.";
+    else if (/^(above|below|between)$/.test(out.breedPool) && !isFinite(parseFloat(out.threshold))) out.error = "Enter a return level, for example 1 for +1%.";
+    else if (out.breedPool === "between" && !isFinite(parseFloat(out.threshold2))) out.error = "Enter the upper return level.";
+    else if (/Pct$/.test(out.breedPool) && !(out.pct >= 1 && out.pct <= 100)) out.error = "The share must be between 1% and 100%.";
+    return out;
+  }
+  function refreshBreeding() {
+    var r = readBreeding(), pool = r.breedPool, pair = r.breedPairing;
+    var usesBr = pool === "brackets" || /Bracket$/.test(pair);
+    $("fThresh").hidden = !/^(above|below|between)$/.test(pool);
+    $("lblThresh").textContent = pool === "between" ? "Lower return level (%)" : "Return level (%)";
+    $("fThresh2").hidden = pool !== "between";
+    $("fPct").hidden = !/Pct$/.test(pool);
+    $("fBrackets").hidden = !usesBr;
+    $("fLevels").hidden = !usesBr || r.brackets !== "profit";
+    $("fAllowed").hidden = pool !== "brackets";
+    $("poolHint").textContent = BR.find(BR.POOLS, pool).desc;
+    $("pairHint").textContent = BR.find(BR.PAIRINGS, pair).desc;
+    var sum = $("breedSummary");
+    if (!r.error) {
+      try {
+        var s = BR.normalize(r);
+        if (pool === "brackets" && $("allowedBoxes").children.length !== BR.bracketCount(s)) renderAllowed(s, r.allowed.filter(function (k) { return k < BR.bracketCount(s); }));
+        else Array.prototype.forEach.call($("allowedBoxes").querySelectorAll("label"), function (l, k) { l.lastChild.textContent = " " + BR.bracketLabels(s)[k]; });
+        r = readBreeding();
+        if (!r.error) {
+          sum.textContent = BR.describe(BR.normalize(r)) + ". The top half still survives each generation from Gen 3 on; only who parents the children changes.";
+          sum.classList.remove("bad");
+          return;
+        }
+      } catch (e) { r.error = e.message; }
+    }
+    sum.textContent = r.error; sum.classList.add("bad");
+  }
+
   function wire() {
     T.SECTORS.forEach(function (s, k) { var o = el("option", null, s); o.value = k; $("sectorSel").appendChild(o); });
     $("btnPlay").addEventListener("click", function () {
@@ -568,7 +649,7 @@
       mult = S.cfg.mult; popText();
       $("inGens").value = S.cfg.generations || 6; $("inForever").checked = !!S.cfg.forever; $("inGens").disabled = !!S.cfg.forever;
       $("inBudget").value = String(S.cfg.detailBudget || 1500000); $("inDays").value = S.cfg.daysPerGen; $("inCash").value = S.cfg.startCash || 100000; $("inSeed").value = S.cfg.seed; $("inFit").value = S.cfg.fitness;
-      $("inBreed").value = S.cfg.breeding || "ranked"; $("inMut").value = String(S.cfg.mutation || 1); breedHint();
+      $("inMut").value = String(S.cfg.mutation || 1); loadBreeding(S.cfg);
       $("newErr").hidden = true;
       $("dlgNew").showModal();
     });
@@ -576,18 +657,18 @@
     $("popHalf").addEventListener("click", function () { if (mult > 1) mult /= 2; popText(); });
     $("btnCancelNew").addEventListener("click", function () { $("dlgNew").close(); });
     $("inForever").addEventListener("change", function () { $("inGens").disabled = this.checked; });
-    T.BREEDING_RULES.forEach(function (r) { var o = el("option", null, r.name); o.value = r.key; $("inBreed").appendChild(o); });
-    function breedHint() { var r = T.BREEDING_RULES.filter(function (x) { return x.key === $("inBreed").value; })[0]; $("breedHint").textContent = r ? r.desc : ""; }
-    $("inBreed").addEventListener("change", breedHint);
-    breedHint();
+    wireBreeding();
     $("formNew").addEventListener("submit", function (e) {
       var forever = $("inForever").checked;
       var g = forever ? 0 : +$("inGens").value, d = +$("inDays").value, s = +$("inSeed").value, cash = +$("inCash").value, err = $("newErr");
       var bad = !forever && !(g >= 2 && g <= 100000) ? "Generations must be between 2 and 100,000, or tick Run forever." : !(d >= 1 && d <= 120) ? "Days per generation must be between 1 and 120." :
         !(s >= 1) ? "Seed must be a positive whole number." : !(cash >= 100 && cash <= 1e12) ? "Starting cash must be between $100 and $1,000,000,000,000." : "";
+      var br = readBreeding();
+      if (!bad && br.error) bad = br.error;
       if (bad) { e.preventDefault(); err.textContent = bad; err.hidden = false; return; }
       build({ mult: mult, generations: Math.round(g), forever: forever, daysPerGen: Math.round(d), seed: Math.round(s), fitness: $("inFit").value,
-        detailBudget: +$("inBudget").value, startCash: Math.round(cash * 100) / 100, breeding: $("inBreed").value, mutation: +$("inMut").value });
+        detailBudget: +$("inBudget").value, startCash: Math.round(cash * 100) / 100, mutation: +$("inMut").value, breeding: br.breeding, breedPool: br.breedPool,
+        breedPairing: br.breedPairing, brackets: br.brackets, levels: br.levels, threshold: br.threshold, threshold2: br.threshold2, pct: br.pct, allowed: br.allowed });
     });
     $("btnCloseBot").addEventListener("click", function () { $("dlgBot").close(); });
     $("btnCloseReport").addEventListener("click", function () { $("dlgReport").close(); });

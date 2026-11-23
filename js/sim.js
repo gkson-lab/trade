@@ -22,18 +22,6 @@
     "Rourke", "Sato", "Bellamy", "Quist", "Duarte", "Falk", "Gallo", "Mbeki", "Oyelaran", "Petrov", "Reyes", "Strand", "Thorne", "Vance",
     "Wexler", "Yilmaz", "Zoric", "Abara"];
 
-  /* How partners are chosen. Every rule keeps the population schedule (20 -> 10 -> 20 -> 20 ...). */
-  var BREEDING_RULES = [
-    { key: "ranked", name: "Ranked neighbours", desc: "1st with 2nd, 3rd with 4th, and so on among the breeders." },
-    { key: "assortative", name: "Winners with winners, losers with losers", desc: "Half the pairs come from the top of the table, half from the bottom. Losers' children join the next generation, but losers don't survive themselves." },
-    { key: "disassortative", name: "Winners with losers", desc: "1st with last, 2nd with second-to-last, and so on." },
-    { key: "random", name: "Random mating", desc: "Breeders pair up at random." },
-    { key: "tournament", name: "Tournament", desc: "Each parent is the best of 3 bots drawn at random from the whole generation." },
-    { key: "roulette", name: "Rank roulette", desc: "Parents are drawn from the whole generation; better ranks are drawn more often." },
-    { key: "outbreed", name: "Avoid relatives", desc: "Each breeder picks the best-ranked partner it is least related to." },
-    { key: "inbreed", name: "Keep it in the family", desc: "Each breeder picks its closest relative, preferring the same house." }
-  ];
-
   function Sim(cfg) {
     this.cfg = {
       mult: cfg.mult || 1,
@@ -45,10 +33,13 @@
       detailBudget: cfg.detailBudget || 1500000,
       startCash: cfg.startCash > 0 ? cfg.startCash : 100000,
       breeding: cfg.breeding || "ranked",
+      breedPool: cfg.breedPool, breedPairing: cfg.breedPairing, brackets: cfg.brackets, levels: cfg.levels,
+      threshold: cfg.threshold, threshold2: cfg.threshold2, pct: cfg.pct, allowed: cfg.allowed,
       mutation: cfg.mutation > 0 ? cfg.mutation : 1,
       samplesPerDay: cfg.samplesPerDay >= 0 ? cfg.samplesPerDay : 150
     };
-    this.ruleName = (BREEDING_RULES.filter(function (x) { return x.key === this.cfg.breeding; }, this)[0] || BREEDING_RULES[0]).name;
+    this.breedSettings = T.Breeding.normalize(this.cfg);
+    this.ruleName = T.Breeding.describe(this.breedSettings);
     this.kinMemo = new Map();
     this.pending = [];
     this.forever = this.cfg.generations === 0;
@@ -98,7 +89,7 @@
     b.house = parents.length ? parents[0].house : HOUSES[founders % HOUSES.length] + (founders >= HOUSES.length ? " " + (Math.floor(founders / HOUSES.length) + 1) : "");
     b.lineageDepth = parents.length ? 1 + Math.max(parents[0].lineageDepth, parents[1].lineageDepth) : 0;
     b.inbreeding = parents.length ? this.kin(parents[0], parents[1]) : 0;
-    b.breedMeta = meta || { rule: parents.length ? this.cfg.breeding : "founder", rankA: "", rankB: "" };
+    b.breedMeta = meta || { rule: "founder", label: "founder", rankA: "", rankB: "", retA: "", retB: "", bracketA: "", bracketB: "", note: "" };
     this.allBots[b.id] = b;
     var c = b.cfg, imp = genome.importance(), names = T.BOT_CONST.FEATURE_NAMES;
     var top = Array.prototype.map.call(imp, function (v, k) { return [v, k]; }).sort(function (a, z) { return z[0] - a[0]; }).slice(0, 3)
@@ -107,7 +98,9 @@
       topFeatures: top, buyThreshold: c.buyTh, sellThreshold: c.sellTh, maxPositions: c.maxPos, positionSize: c.posSize, stopLoss: c.stopLoss,
       takeProfit: c.takeProfit, decisionEveryBars: c.interval, maxHoldDays: c.maxHold, cashReserve: c.cashReserve, shorts: c.shortOn ? "yes" : "no",
       trailingStop: c.trail ? "yes" : "no", conviction: c.conviction, house: b.house, lineageDepth: b.lineageDepth, inbreeding: r4(b.inbreeding),
-      genotype: this.genotypeString(b), traits: this.traitString(b), breedingRule: b.breedMeta.rule,
+      genotype: this.genotypeString(b), traits: this.traitString(b), breedingRule: b.breedMeta.rule, breedingDetail: b.breedMeta.label,
+      parentBrackets: b.breedMeta.bracketA ? b.breedMeta.bracketA + " + " + b.breedMeta.bracketB : "",
+      parentReturns: b.breedMeta.retA === "" ? "" : pctStr(b.breedMeta.retA) + " + " + pctStr(b.breedMeta.retB), breedingNote: b.breedMeta.note,
       parentRanks: b.breedMeta.rankA === "" ? "" : b.breedMeta.rankA + " + " + b.breedMeta.rankB, genome: JSON.stringify(genome.toJSON()) });
     return b;
   };
@@ -155,6 +148,7 @@
 
   function barTime(b) { var mins = 570 + b * 5, h = Math.floor(mins / 60), mm = mins % 60; return (h < 10 ? "0" : "") + h + ":" + (mm < 10 ? "0" : "") + mm; }
   function r4(x) { return x === null || x === undefined || !isFinite(x) ? x : Math.round(x * 10000) / 10000; }
+  function pctStr(x) { return (x >= 0 ? "+" : "") + (x * 100).toFixed(2) + "%"; }
   function r6(x) { return x === null || x === undefined || !isFinite(x) ? x : Math.round(x * 1e6) / 1e6; }
   function r2(x) { return x === null || x === undefined || !isFinite(x) ? x : Math.round(x * 100) / 100; }
 
@@ -212,11 +206,13 @@
     var rows = this.bots.map(function (b) { var s = b.stats(); return { bot: b, s: s, fit: self.fitnessOf(s) }; });
     rows.sort(function (a, b) { return b.fit - a.fit; });
     var idxRet = m.index / this.genStartIndex - 1;
+    this.lastIdxRet = idxRet;
     var botRows = [];
     rows.forEach(function (r, k) {
       var b = r.bot, s = r.s, c = b.cfg;
       b.history.push({ gen: g, ret: s.ret, rank: k + 1 });
       b.lastRank = k + 1;
+      b.lastReturn = s.ret;
       botRows.push({
         gen: g, rank: k + 1, id: b.id, bot: b.name, born: b.gen, age: b.age, parents: b.parents.join(" + "), style: b.style,
         returnPct: s.ret, pnl: r2(s.pnl), finalEquity: r2(s.equity), annualizedReturn: s.annReturn, vsIndex: s.ret - idxRet,
@@ -235,7 +231,10 @@
         maxPositions: c.maxPos, positionSize: c.posSize, stopLoss: c.stopLoss, takeProfit: c.takeProfit,
         decisionEveryBars: c.interval, maxHoldDays: c.maxHold, shorts: c.shortOn ? "yes" : "no", trailingStop: c.trail ? "yes" : "no",
         house: b.house, lineageDepth: b.lineageDepth, inbreeding: r4(b.inbreeding), genotype: self.genotypeString(b), traits: self.traitString(b),
-        breedingRule: b.breedMeta.rule, parentRanks: b.breedMeta.rankA === "" ? "" : b.breedMeta.rankA + " + " + b.breedMeta.rankB
+        breedingRule: b.breedMeta.rule, parentRanks: b.breedMeta.rankA === "" ? "" : b.breedMeta.rankA + " + " + b.breedMeta.rankB,
+        parentReturns: b.breedMeta.retA === "" ? "" : pctStr(b.breedMeta.retA) + " + " + pctStr(b.breedMeta.retB),
+        parentBrackets: b.breedMeta.bracketA ? b.breedMeta.bracketA + " + " + b.breedMeta.bracketB : "", breedingDetail: b.breedMeta.label,
+        breedingNote: b.breedMeta.note
       });
       var tr = T.TRAITS, brow = botRows[botRows.length - 1];
       tr.forEach(function (t) { brow["trait_" + t.key] = b.traits[t.key]; });
@@ -376,15 +375,15 @@
     this.gen++;  // children are born into the next generation
     if (this.gen === 2) {
       // everyone breeds: half as many pairs as bots, one child each
-      pairs = this.makePairs(ranked, ranked.length / 2, ranked);
-      pairs.forEach(function (p) { next.push(self.child(p[0], p[1], r, sigma)); });
+      pairs = T.Breeding.select(this, ranked, ranked.length / 2, ranked);
+      pairs.forEach(function (p) { next.push(self.child(p, r, sigma)); });
     } else {
       var survivors = this.gen === 3 ? ranked : ranked.slice(0, ranked.length / 2);
-      pairs = this.makePairs(ranked, survivors.length / 2, survivors);
+      pairs = T.Breeding.select(this, ranked, survivors.length / 2, survivors);
       for (i = 0; i < survivors.length; i++) { survivors[i].age++; survivors[i].reset(); next.push(survivors[i]); }
       pairs.forEach(function (p) {
-        next.push(self.child(p[0], p[1], r, sigma));
-        next.push(self.child(p[0], p[1], r, sigma));   // twin
+        next.push(self.child(p, r, sigma));
+        next.push(self.child(p, r, sigma));   // twin
       });
     }
     this.gen--;
@@ -393,48 +392,8 @@
     this.markAlive();
   };
 
-  Sim.prototype.child = function (a, b, r, sigma) {
-    if ((b.lastRank || 0) < (a.lastRank || 0)) { var t = a; a = b; b = t; }   // the better-ranked parent passes on the house name
-    return this.newBot(T.Genome.cross(a.genome, b.genome, r, sigma), [a, b], { rule: this.cfg.breeding, rankA: a.lastRank, rankB: b.lastRank });
-  };
-
-  /* Choose nPairs parent pairs. ranked: the whole generation, best first. elite: the bots allowed to breed
-   * under rules that only let survivors breed. Every pair is two different bots. */
-  Sim.prototype.makePairs = function (ranked, nPairs, elite) {
-    var rule = this.cfg.breeding, r = this.rng, out = [], i, self = this, N = ranked.length;
-    function neighbours(list, k) { var o = []; for (var j = 0; j + 1 < list.length && o.length < k; j += 2) o.push([list[j], list[j + 1]]); return o; }
-    function pickOther(fn, not) { for (var tries = 0; tries < 50; tries++) { var x = fn(); if (x !== not) return x; } return ranked[ranked[0] === not ? 1 : 0]; }
-    if (rule === "assortative") {
-      var top = Math.ceil(nPairs / 2);
-      out = neighbours(ranked, top);
-      var bottom = ranked.slice().reverse();
-      neighbours(bottom, nPairs - top).forEach(function (p) { out.push([p[1], p[0]]); });
-    } else if (rule === "disassortative") {
-      for (i = 0; i < nPairs; i++) out.push([ranked[i], ranked[N - 1 - i]]);
-    } else if (rule === "random") {
-      var pool = elite.slice();
-      for (i = pool.length - 1; i > 0; i--) { var j = Math.floor(r.next() * (i + 1)), t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
-      out = neighbours(pool, nPairs);
-    } else if (rule === "tournament" || rule === "roulette") {
-      var draw = rule === "tournament"
-        ? function () { var best = N; for (var k = 0; k < 3; k++) best = Math.min(best, Math.floor(r.next() * N)); return ranked[best]; }
-        : function () { var tot = N * (N + 1) / 2, x = r.next() * tot; for (var k = 0; k < N; k++) { x -= N - k; if (x <= 0) return ranked[k]; } return ranked[N - 1]; };
-      for (i = 0; i < nPairs; i++) { var a = draw(); out.push([a, pickOther(draw, a)]); }
-    } else if (rule === "outbreed" || rule === "inbreed") {
-      var left = elite.slice();
-      while (left.length > 1 && out.length < nPairs) {
-        var me = left.shift(), bestK = -1, bestV = rule === "outbreed" ? Infinity : -Infinity;
-        for (var k = 0; k < left.length; k++) {
-          var v = self.kin(me, left[k]) + (rule === "inbreed" && left[k].house === me.house ? 0.01 : 0);
-          if (rule === "outbreed" ? v < bestV - 1e-12 : v > bestV + 1e-12) { bestV = v; bestK = k; }
-        }
-        out.push([me, left.splice(bestK, 1)[0]]);
-      }
-    } else {
-      out = neighbours(elite, nPairs);
-    }
-    while (out.length < nPairs) out.push([elite[0], elite[1] || ranked[1]]);   // safety net for tiny pools
-    return out;
+  Sim.prototype.child = function (p, r, sigma) {
+    return this.newBot(T.Genome.cross(p.a.genome, p.b.genome, r, sigma), [p.a, p.b], p.meta);
   };
 
   /* Training data: a labeled sample of stocks at each close. Labels are filled in as the future arrives. */
@@ -495,6 +454,8 @@
       var row = { id: id, bot: b.name, house: b.house, born: b.gen, lineageDepth: b.lineageDepth, parentA: pa ? pa.name : "", parentB: pb ? pb.name : "",
         parentAHouse: pa ? pa.house : "", parentBHouse: pb ? pb.house : "", grandparents: gp.join(", "),
         breedingRule: b.breedMeta.rule, parentRanks: b.breedMeta.rankA === "" ? "" : b.breedMeta.rankA + " + " + b.breedMeta.rankB,
+        parentReturns: b.breedMeta.retA === "" ? "" : pctStr(b.breedMeta.retA) + " + " + pctStr(b.breedMeta.retB),
+        parentBrackets: b.breedMeta.bracketA ? b.breedMeta.bracketA + " + " + b.breedMeta.bracketB : "", breedingDetail: b.breedMeta.label,
         inbreeding: r4(b.inbreeding), children: ch.length, grandchildren: grand,
         status: self.alive[id] && !self.done ? "alive" : rr.length ? "retired" : "never traded", generationsTraded: rr.length,
         compoundedReturn: rr.length ? rr.reduce(function (a, x) { return a * (1 + x); }, 1) - 1 : "", genotype: self.genotypeString(b) };
@@ -619,5 +580,4 @@
   T.Sim = Sim;
   T.stat = { mean: mean, median: median, stdev: stdev };
   T.DETAIL_TABLES = DETAIL;
-  T.BREEDING_RULES = BREEDING_RULES;
 })(window.T = window.T || {});

@@ -57,18 +57,33 @@ Founders each start a **house**, and children take the house of their better-ran
 
 ### Breeding rules
 
-Pick one in **New run → Who breeds with whom** (`--breeding` on the CLI). Each rule keeps the 20 → 10 → 20 schedule.
+In **New run → Breeding**, pick a preset or build your own from three parts. On the CLI, use `--breeding PRESET`, or `--pool`, `--pairing` and `--brackets`; run `node cli.js --list-breeding` to see every choice.
 
-| Rule | Pairs |
+**Presets**
+
+| Group | Presets |
 |---|---|
-| Ranked neighbours (default) | 1st with 2nd, 3rd with 4th ... among the breeders |
-| Winners with winners, losers with losers | Half the pairs from the top of the table, half from the bottom. Losers' children join the next generation, but losers don't survive themselves |
-| Winners with losers | 1st with last, 2nd with second-to-last ... |
-| Random mating | Breeders pair at random |
-| Tournament | Each parent is the best of 3 random bots from the whole generation |
-| Rank roulette | Parents drawn from everyone, better ranks more often |
-| Avoid relatives | Each breeder picks the best partner it is least related to |
-| Keep it in the family | Each breeder picks its closest relative, preferring the same house |
+| Winners and losers | Ranked neighbours (default) · Winners with winners · Losers with losers · Winners with winners and losers with losers · Winners with losers |
+| By profit | Only profitable bots · Only losing bots · Only bots that beat the SIM 500 · Only bots above a return you set · Only bots in a return range you set · Top 25% mate at random · Bottom 25% mate at random |
+| By bracket | Within each quartile · Each quartile with the one below · Top quartile with bottom quartile · Top two quartiles only · Within profit levels (below -2%, -2 to 0%, 0 to 2%, above 2%) |
+| Other | Random mating · Tournament · Rank roulette · Avoid relatives · Keep it in the family |
+
+**Build your own** (changing any of these switches the preset to Custom):
+
+| Part | Choices |
+|---|---|
+| Who can breed (`--pool`) | The usual breeders · Everyone · Winners (top half) · Losers (bottom half) · Winners and losers kept apart · Profitable bots · Unprofitable bots · Beat the SIM 500 · Lost to the SIM 500 · Return at or above a level · Return below a level · Return between two levels · Top X% · Bottom X% · Chosen brackets |
+| How they pair up (`--pairing`) | Similar rank · Opposite rank · Random · Closest profit · Same bracket only · Next bracket down · Mirror brackets (top with bottom) · Tournament · Rank roulette · Least related · Most related |
+| Brackets (`--brackets`) | Halves · Thirds · Quartiles · Fifths · Tenths · Profit levels you set (`--levels -2,0,2`) |
+| Settings | Return levels in % (`--threshold`, `--threshold2`), share for Top/Bottom X% (`--pct`), which brackets may breed (`--allowed 1,2`, where 1 is the top bracket) |
+
+Example: `node cli.js --pool brackets --brackets profit --levels -3,0,3 --allowed 1,4 --pairing mirrorBracket` lets only bots above +3% and bots below -3% breed, each high earner paired with a big loser.
+
+**How it works**
+
+- The schedule never changes (20 → 10 → 20). Rules choose who *parents* the children; from Gen 3 on, the top half still survives into the next generation.
+- If a rule's pool has fewer bots than the pairs needed, bots in it parent more than one pair. If fewer than 2 bots qualify, the next in line fill in, and the child's record says so.
+- Every child records its parents' ranks, returns and brackets, plus the rule that paired them (`parentRanks`, `parentReturns`, `parentBrackets`, `breedingDetail`).
 
 **Mutation** (Low / Normal / High / Wild, `--mutation`) scales how far children drift from their parents.
 

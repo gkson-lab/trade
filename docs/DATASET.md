@@ -74,7 +74,7 @@ Targets: `y_return`, `y_pnl`, `y_win`, `y_holdDays`, `y_mfe` (best move in the t
 
 - genes: `maxPositions`, `positionSize`, `stopLoss`, ...
 - traits: `trait_*`, `genotype`, `house`, `inbreeding`, `lineageDepth`
-- breeding: `breedingRule`, `parentRanks`
+- breeding: `breedingRule` (preset), `breedingDetail` (pool, pairing and brackets in words), `parentRanks`, `parentReturns`, `parentBrackets`, `breedingNote` (set when fewer than 2 bots qualified)
 - outcomes: about 50 metrics, such as `returnPct`, `sharpe`, `alphaAnn` and `maxDrawdown`
 
 Use it to learn which genetic make-ups do well.

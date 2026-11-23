@@ -1,6 +1,6 @@
 /* Offline cache: after the first visit the box runs with no network. */
-var CACHE = "trade-box-v2";
-var FILES = ["./", "index.html", "css/app.css", "js/symbols.js", "js/rng.js", "js/news.js", "js/market.js", "js/bots.js",
+var CACHE = "trade-box-v3";
+var FILES = ["./", "index.html", "css/app.css", "js/symbols.js", "js/rng.js", "js/news.js", "js/market.js", "js/bots.js", "js/breeding.js",
   "js/sim.js", "js/report.js", "js/charts.js", "js/app.js", "js/updates.js", "vendor/xlsx.full.min.js", "icon.svg", "manifest.webmanifest"];
 self.addEventListener("install", function (e) { e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(FILES); })); self.skipWaiting(); });
 self.addEventListener("activate", function (e) {

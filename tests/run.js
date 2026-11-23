@@ -2,7 +2,7 @@
 "use strict";
 var fs = require("fs"), path = require("path"), vm = require("vm"), assert = require("assert");
 global.window = global;
-["js/symbols.js", "js/rng.js", "js/news.js", "js/market.js", "js/bots.js", "js/sim.js", "js/report.js"].forEach(function (f) {
+["js/symbols.js", "js/rng.js", "js/news.js", "js/market.js", "js/bots.js", "js/breeding.js", "js/sim.js", "js/report.js"].forEach(function (f) {
   vm.runInThisContext(fs.readFileSync(path.join(__dirname, "..", f), "utf8"), { filename: f });
 });
 var XLSX = require(path.join(__dirname, "..", "vendor", "xlsx.full.min.js"));
@@ -93,17 +93,54 @@ assert.strictEqual(trades.length, a.log.trades.length, "combined trades = all tr
 assert.ok(trades[0].source === "gen-0001" && typeof trades[0].qty === "number");
 console.log("ok  zips + combine: " + files.length + " CSVs -> " + combined.sheets + " sheets, " + combined.rows + " rows");
 
-// breeding rules keep the schedule and pick the partners they promise
+// breeding: every preset keeps the schedule and every child's parents satisfy the rule
+function parentsOf(sim) {
+  var genRet = {}; sim.log.generations.forEach(function (g) { genRet[g.gen] = g.indexReturn; });
+  return sim.log.genomes.filter(function (g) { return g.born >= 2; }).map(function (g) {
+    var rk = g.parentRanks.split(" + ").map(Number), rt = g.parentReturns.split(" + ").map(function (x) { return parseFloat(x); });
+    var br = g.parentBrackets ? g.parentBrackets.split(" + ") : ["", ""], size = sim.log.generations[g.born - 2].bots;
+    return { rk: rk, rt: rt, br: br, size: size, note: g.breedingNote, idx: genRet[g.born - 1] * 100, born: g.born };
+  });
+}
+function q(label) { var m = /Quartile (\d)/.exec(label); return m ? +m[1] : 0; }
+var CHECKS = {
+  winners: function (p) { return p.rk[0] <= p.size / 2 && p.rk[1] <= p.size / 2; },
+  losers: function (p) { return p.rk[0] > p.size / 2 && p.rk[1] > p.size / 2; },
+  assortative: function (p) { return (p.rk[0] <= p.size / 2) === (p.rk[1] <= p.size / 2); },
+  disassortative: function (p) { return p.rk[0] <= p.size / 2 && p.rk[1] > p.size / 2; },
+  profitable: function (p) { return p.note || (p.rt[0] > 0 && p.rt[1] > 0); },
+  unprofitable: function (p) { return p.note || (p.rt[0] <= 0 && p.rt[1] <= 0); },
+  beatIndex: function (p) { return p.note || (p.rt[0] > p.idx - 0.01 && p.rt[1] > p.idx - 0.01); },
+  above: function (p) { return p.note || (p.rt[0] >= 0.995 && p.rt[1] >= 0.995); },
+  between: function (p) { return p.note || p.rt.every(function (x) { return x >= -1.005 && x <= 1.005; }); },
+  topPct: function (p) { return p.rk[1] <= Math.max(2, Math.round(p.size * 0.25)); },
+  bottomPct: function (p) { return p.rk[0] > p.size - Math.max(2, Math.round(p.size * 0.25)); },
+  sameBracket: function (p) { return p.br[0] === p.br[1]; },
+  crossBracket: function (p) { return q(p.br[1]) - q(p.br[0]) === 1; },
+  mirrorBracket: function (p) { return q(p.br[0]) + q(p.br[1]) === 5; },
+  topBrackets: function (p) { return q(p.br[0]) <= 2 && q(p.br[1]) <= 2; },
+  profitLevels: function (p) { return p.br[0] === p.br[1]; }
+};
 T.BREEDING_RULES.forEach(function (rule) {
   var s = run({ mult: 1, generations: 5, daysPerGen: 1, seed: 21, maxSymbols: SMALL, breeding: rule.key });
   assert.deepStrictEqual(s.log.generations.map(function (g) { return g.bots; }), [20, 10, 20, 20, 20], rule.key + " schedule");
-  var kids = s.log.genomes.filter(function (g) { return g.born === 4; });
-  kids.forEach(function (k) { var pr = k.parentRanks.split(" + ").map(Number); assert.ok(pr[0] !== pr[1] && pr[0] >= 1 && pr[1] <= 20, rule.key + " distinct parents"); });
-  if (rule.key === "disassortative") assert.ok(kids.some(function (k) { return k.parentRanks === "1 + 20"; }), "winner with loser");
-  if (rule.key === "assortative") assert.ok(kids.some(function (k) { return k.parentRanks === "1 + 2"; }) && kids.some(function (k) { return k.parentRanks === "19 + 20"; }), "winners together, losers together");
-  if (rule.key === "ranked") kids.forEach(function (k) { var pr = k.parentRanks.split(" + ").map(Number); assert.ok(pr[1] <= 10 && pr[1] === pr[0] + 1, "neighbours from the top half"); });
+  var ps = parentsOf(s);
+  ps.forEach(function (p) { assert.ok(p.rk[0] !== p.rk[1], rule.key + " two different parents"); assert.ok(p.rk[0] < p.rk[1], rule.key + " better-ranked parent first"); });
+  if (CHECKS[rule.key]) ps.forEach(function (p) { assert.ok(CHECKS[rule.key](p), rule.key + " parents " + JSON.stringify(p)); });
 });
-console.log("ok  " + T.BREEDING_RULES.length + " breeding rules keep 20 -> 10 -> 20 and pick the promised partners");
+// custom combinations, including profit brackets you define and chosen brackets
+var custom = run({ mult: 2, generations: 5, daysPerGen: 1, seed: 22, maxSymbols: SMALL, breeding: "custom", breedPool: "brackets", breedPairing: "opposite",
+  brackets: "thirds", allowed: [0, 2] });
+parentsOf(custom).forEach(function (p) { assert.ok(/Third (1|3)/.test(p.br[0]) && /Third (1|3)/.test(p.br[1]), "only thirds 1 and 3 breed"); });
+var lv = run({ mult: 1, generations: 4, daysPerGen: 1, seed: 23, maxSymbols: SMALL, breeding: "custom", breedPool: "all", breedPairing: "sameBracket",
+  brackets: "profit", levels: [-1, 1] });
+parentsOf(lv).forEach(function (p) {
+  assert.strictEqual(p.br[0], p.br[1], "same profit level");
+  var lab = p.br[0], x = p.rt[0];
+  assert.ok(lab === "at or above 1%" ? x >= 0.995 : lab === "below -1%" ? x < -0.995 : x >= -1.005 && x < 1.005, "level label matches return " + lab + " " + x);
+});
+assert.throws(function () { new T.Sim({ breeding: "custom", breedPool: "nope" }); }, /Unknown breeding pool/);
+console.log("ok  " + T.BREEDING_RULES.length + " breeding presets + custom pools/pairings/brackets keep 20 -> 10 -> 20 and pick the promised parents");
 
 // Mendelian inheritance: every child allele comes from a parent (allowing for 2% mutation)
 var gsim = run({ mult: 2, generations: 6, daysPerGen: 1, seed: 33, maxSymbols: SMALL });

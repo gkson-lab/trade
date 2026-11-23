@@ -176,13 +176,34 @@
       <div class="field"><label class="label" for="inSeed">Seed</label><input class="input" id="inSeed" type="number" min="1" max="2147483647" value="20270104" required></div>
       <div class="field"><label class="label" for="inFit">Breeding picks by</label>
         <select class="select full" id="inFit"><option value="return">Total return</option><option value="risk">Return minus half max drawdown</option></select></div>
-      <div class="field"><label class="label" for="inBreed">Who breeds with whom</label>
-        <select class="select full" id="inBreed" aria-describedby="breedHint"></select>
-        <span class="hint" id="breedHint"></span></div>
       <div class="field"><label class="label" for="inMut">Mutation</label>
         <select class="select full" id="inMut"><option value="0.5">Low (0.5x)</option><option value="1" selected>Normal</option><option value="2">High (2x)</option><option value="4">Wild (4x)</option></select>
         <span class="hint">How much children's genes and alleles drift from their parents'.</span></div>
     </div>
+    <fieldset class="breed" id="breedBox">
+      <legend>Breeding</legend>
+      <div class="field"><label class="label" for="inBreed">Preset</label>
+        <select class="select full" id="inBreed"></select></div>
+      <div class="grid2">
+        <div class="field"><label class="label" for="inPool">Who can breed</label>
+          <select class="select full" id="inPool" aria-describedby="poolHint"></select><span class="hint" id="poolHint"></span></div>
+        <div class="field"><label class="label" for="inPair">How they pair up</label>
+          <select class="select full" id="inPair" aria-describedby="pairHint"></select><span class="hint" id="pairHint"></span></div>
+        <div class="field" id="fThresh"><label class="label" for="inThresh" id="lblThresh">Return level (%)</label>
+          <input class="input" id="inThresh" type="number" step="0.1" inputmode="decimal"></div>
+        <div class="field" id="fThresh2"><label class="label" for="inThresh2">Upper return level (%)</label>
+          <input class="input" id="inThresh2" type="number" step="0.1" inputmode="decimal"></div>
+        <div class="field" id="fPct"><label class="label" for="inPct">Share of the generation (%)</label>
+          <input class="input" id="inPct" type="number" min="1" max="100" step="1"></div>
+        <div class="field" id="fBrackets"><label class="label" for="inBrackets">Brackets</label>
+          <select class="select full" id="inBrackets"></select></div>
+        <div class="field" id="fLevels"><label class="label" for="inLevels">Profit levels (%), comma-separated</label>
+          <input class="input" id="inLevels" type="text" inputmode="decimal" spellcheck="false">
+          <span class="hint">-2, 0, 2 makes four brackets: below -2%, -2 to 0%, 0 to 2%, 2% and up.</span></div>
+      </div>
+      <fieldset class="field" id="fAllowed"><legend class="label">Brackets that can breed</legend><div id="allowedBoxes" class="checks"></div></fieldset>
+      <p class="breed-summary" id="breedSummary"></p>
+    </fieldset>
     <div class="field"><label class="label" for="inBudget">Trade-level rows kept in memory</label>
       <select class="select full" id="inBudget">
         <option value="500000">500,000 (phones)</option>
@@ -261,6 +282,7 @@
 <script src="js/news.js"></script>
 <script src="js/market.js"></script>
 <script src="js/bots.js"></script>
+<script src="js/breeding.js"></script>
 <script src="js/sim.js"></script>
 <script src="js/report.js"></script>
 <script src="js/charts.js"></script>

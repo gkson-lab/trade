@@ -156,6 +156,12 @@ button, input, select { font: inherit; color: inherit; }
 .check { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--body); cursor: pointer; margin-top: 4px; }
 .check input { accent-color: var(--accent); width: 16px; height: 16px; }
 .exports { display: grid; gap: 8px; }
+.breed { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 10px 12px 12px; display: grid; gap: 10px; margin: 0; min-width: 0; }
+.breed legend { padding: 0 6px; color: var(--text); font-weight: 600; font-size: 13px; }
+.breed fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.checks { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 4px; }
+.breed-summary { margin: 0; font-size: 12px; color: var(--text); background: var(--accent-weak); border-radius: var(--r-md); padding: 8px 10px; }
+.breed-summary.bad { background: var(--down-weak); color: var(--down); }
 .export-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px; }
 .export { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 10px 12px; display: grid; gap: 6px; align-content: start; background: var(--card); }
 .export b { color: var(--text); font-weight: 600; }
@@ -455,13 +461,34 @@ th { color: var(--muted); font-weight: 500; background: var(--card); position: s
       <div class="field"><label class="label" for="inSeed">Seed</label><input class="input" id="inSeed" type="number" min="1" max="2147483647" value="20270104" required></div>
       <div class="field"><label class="label" for="inFit">Breeding picks by</label>
         <select class="select full" id="inFit"><option value="return">Total return</option><option value="risk">Return minus half max drawdown</option></select></div>
-      <div class="field"><label class="label" for="inBreed">Who breeds with whom</label>
-        <select class="select full" id="inBreed" aria-describedby="breedHint"></select>
-        <span class="hint" id="breedHint"></span></div>
       <div class="field"><label class="label" for="inMut">Mutation</label>
         <select class="select full" id="inMut"><option value="0.5">Low (0.5x)</option><option value="1" selected>Normal</option><option value="2">High (2x)</option><option value="4">Wild (4x)</option></select>
         <span class="hint">How much children's genes and alleles drift from their parents'.</span></div>
     </div>
+    <fieldset class="breed" id="breedBox">
+      <legend>Breeding</legend>
+      <div class="field"><label class="label" for="inBreed">Preset</label>
+        <select class="select full" id="inBreed"></select></div>
+      <div class="grid2">
+        <div class="field"><label class="label" for="inPool">Who can breed</label>
+          <select class="select full" id="inPool" aria-describedby="poolHint"></select><span class="hint" id="poolHint"></span></div>
+        <div class="field"><label class="label" for="inPair">How they pair up</label>
+          <select class="select full" id="inPair" aria-describedby="pairHint"></select><span class="hint" id="pairHint"></span></div>
+        <div class="field" id="fThresh"><label class="label" for="inThresh" id="lblThresh">Return level (%)</label>
+          <input class="input" id="inThresh" type="number" step="0.1" inputmode="decimal"></div>
+        <div class="field" id="fThresh2"><label class="label" for="inThresh2">Upper return level (%)</label>
+          <input class="input" id="inThresh2" type="number" step="0.1" inputmode="decimal"></div>
+        <div class="field" id="fPct"><label class="label" for="inPct">Share of the generation (%)</label>
+          <input class="input" id="inPct" type="number" min="1" max="100" step="1"></div>
+        <div class="field" id="fBrackets"><label class="label" for="inBrackets">Brackets</label>
+          <select class="select full" id="inBrackets"></select></div>
+        <div class="field" id="fLevels"><label class="label" for="inLevels">Profit levels (%), comma-separated</label>
+          <input class="input" id="inLevels" type="text" inputmode="decimal" spellcheck="false">
+          <span class="hint">-2, 0, 2 makes four brackets: below -2%, -2 to 0%, 0 to 2%, 2% and up.</span></div>
+      </div>
+      <fieldset class="field" id="fAllowed"><legend class="label">Brackets that can breed</legend><div id="allowedBoxes" class="checks"></div></fieldset>
+      <p class="breed-summary" id="breedSummary"></p>
+    </fieldset>
     <div class="field"><label class="label" for="inBudget">Trade-level rows kept in memory</label>
       <select class="select full" id="inBudget">
         <option value="500000">500,000 (phones)</option>
@@ -2072,6 +2099,280 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
 })(window.T = window.T || {});
 
 </script>
+<script>/* js/breeding.js */
+/* Breeding rules, built from three choices:
+ *   pool     who is allowed to breed (winners, losers, profitable, above a return, chosen brackets, ...)
+ *   pairing  how the pool pairs up (similar rank, opposite rank, same bracket, next bracket down, ...)
+ *   brackets how the generation is cut into brackets (quartiles, thirds, ... or profit levels you set)
+ * Presets are named combinations; changing any part makes it "custom".
+ * The population schedule never changes (20 -> 10 -> 20 ...): if a pool is smaller than the number of
+ * parents needed, its bots parent more than one pair; if fewer than 2 qualify, the next bots in line fill in. */
+(function (T) {
+  "use strict";
+
+  var POOLS = [
+    { key: "breeders", name: "The usual breeders", desc: "Gen 1: everyone. Gen 2: all of them. Gen 3 on: the surviving top half." },
+    { key: "all", name: "Everyone", desc: "Every bot in the generation can breed." },
+    { key: "winners", name: "Winners (top half)", desc: "Only the top half of the rankings breeds." },
+    { key: "losers", name: "Losers (bottom half)", desc: "Only the bottom half of the rankings breeds." },
+    { key: "split", name: "Winners and losers, kept apart", desc: "Half the pairs come from the top half, half from the bottom half; the halves never mix." },
+    { key: "profitable", name: "Profitable bots", desc: "Only bots that made money this generation." },
+    { key: "unprofitable", name: "Unprofitable bots", desc: "Only bots that lost money this generation." },
+    { key: "beatIndex", name: "Beat the SIM 500", desc: "Only bots whose return beat the index over the same days." },
+    { key: "lostToIndex", name: "Lost to the SIM 500", desc: "Only bots that trailed the index." },
+    { key: "above", name: "Return at or above a level", desc: "Only bots at or above the return you set." },
+    { key: "below", name: "Return below a level", desc: "Only bots below the return you set." },
+    { key: "between", name: "Return between two levels", desc: "Only bots inside the return range you set." },
+    { key: "topPct", name: "Top X%", desc: "Only the best X% of the rankings." },
+    { key: "bottomPct", name: "Bottom X%", desc: "Only the worst X% of the rankings." },
+    { key: "brackets", name: "Chosen brackets", desc: "Only the brackets you tick." }
+  ];
+  var PAIRINGS = [
+    { key: "similar", name: "Similar rank", desc: "Best with next best: 1st + 2nd, 3rd + 4th ..." },
+    { key: "opposite", name: "Opposite rank", desc: "Best with worst: 1st + last, 2nd + second-to-last ..." },
+    { key: "random", name: "Random", desc: "Partners drawn at random." },
+    { key: "closestProfit", name: "Closest profit", desc: "Each bot with the one whose return is nearest its own." },
+    { key: "sameBracket", name: "Same bracket only", desc: "Partners always come from the same bracket." },
+    { key: "crossBracket", name: "Next bracket down", desc: "Each bracket pairs with the bracket just below it." },
+    { key: "mirrorBracket", name: "Mirror brackets", desc: "Top bracket with bottom bracket, 2nd with second-to-last ..." },
+    { key: "tournament", name: "Tournament", desc: "Each parent is the best of 3 drawn at random." },
+    { key: "roulette", name: "Rank roulette", desc: "Better ranks are drawn more often." },
+    { key: "outbreed", name: "Least related", desc: "Each bot picks the partner it shares the least ancestry with." },
+    { key: "inbreed", name: "Most related", desc: "Each bot picks its closest relative, preferring its own house." }
+  ];
+  var BRACKETS = [
+    { key: "halves", name: "Halves", n: 2 }, { key: "thirds", name: "Thirds", n: 3 }, { key: "quartiles", name: "Quartiles", n: 4 },
+    { key: "quintiles", name: "Fifths", n: 5 }, { key: "deciles", name: "Tenths", n: 10 }, { key: "profit", name: "Profit levels (set your own)" }
+  ];
+  var PRESETS = [
+    { key: "ranked", name: "Ranked neighbours", pool: "breeders", pairing: "similar" },
+    { key: "winners", name: "Winners with winners", pool: "winners", pairing: "similar" },
+    { key: "losers", name: "Losers with losers", pool: "losers", pairing: "similar" },
+    { key: "assortative", name: "Winners with winners and losers with losers", pool: "split", pairing: "similar" },
+    { key: "disassortative", name: "Winners with losers", pool: "all", pairing: "opposite" },
+    { key: "profitable", name: "Only profitable bots", pool: "profitable", pairing: "similar" },
+    { key: "unprofitable", name: "Only losing bots", pool: "unprofitable", pairing: "similar" },
+    { key: "beatIndex", name: "Only bots that beat the SIM 500", pool: "beatIndex", pairing: "similar" },
+    { key: "above", name: "Only bots above a return you set", pool: "above", pairing: "similar", threshold: 1 },
+    { key: "between", name: "Only bots in a return range you set", pool: "between", pairing: "random", threshold: -1, threshold2: 1 },
+    { key: "topPct", name: "Top 25% mate at random", pool: "topPct", pairing: "random", pct: 25 },
+    { key: "bottomPct", name: "Bottom 25% mate at random", pool: "bottomPct", pairing: "random", pct: 25 },
+    { key: "sameBracket", name: "Within each quartile", pool: "all", pairing: "sameBracket", brackets: "quartiles" },
+    { key: "crossBracket", name: "Each quartile with the one below", pool: "all", pairing: "crossBracket", brackets: "quartiles" },
+    { key: "mirrorBracket", name: "Top quartile with bottom quartile", pool: "all", pairing: "mirrorBracket", brackets: "quartiles" },
+    { key: "topBrackets", name: "Top two quartiles only", pool: "brackets", pairing: "similar", brackets: "quartiles", allowed: [0, 1] },
+    { key: "profitLevels", name: "Within profit levels (below -2%, -2 to 0%, 0 to 2%, above 2%)", pool: "all", pairing: "sameBracket", brackets: "profit", levels: [-2, 0, 2] },
+    { key: "random", name: "Random mating", pool: "breeders", pairing: "random" },
+    { key: "tournament", name: "Tournament", pool: "all", pairing: "tournament" },
+    { key: "roulette", name: "Rank roulette", pool: "all", pairing: "roulette" },
+    { key: "outbreed", name: "Avoid relatives", pool: "breeders", pairing: "outbreed" },
+    { key: "inbreed", name: "Keep it in the family", pool: "breeders", pairing: "inbreed" },
+    { key: "custom", name: "Custom", pool: "breeders", pairing: "similar" }
+  ];
+  var LOSER_POOLS = { losers: 1, unprofitable: 1, lostToIndex: 1, below: 1, bottomPct: 1 };
+
+  function find(list, key) { for (var i = 0; i < list.length; i++) if (list[i].key === key) return list[i]; return null; }
+
+  /* Fill in a full settings object from a preset key plus any explicit overrides. */
+  function normalize(c) {
+    c = c || {};
+    var p = find(PRESETS, c.breeding) || PRESETS[0];
+    var s = {
+      preset: p.key,
+      pool: c.breedPool || p.pool, pairing: c.breedPairing || p.pairing,
+      brackets: c.brackets || p.brackets || "quartiles",
+      levels: (c.levels || p.levels || [-2, 0, 2]).map(Number).filter(isFinite).sort(function (a, b) { return a - b; }),
+      threshold: c.threshold !== undefined && c.threshold !== "" ? +c.threshold : (p.threshold !== undefined ? p.threshold : 0),
+      threshold2: c.threshold2 !== undefined && c.threshold2 !== "" ? +c.threshold2 : (p.threshold2 !== undefined ? p.threshold2 : 2),
+      pct: c.pct > 0 ? Math.min(100, +c.pct) : (p.pct || 25),
+      allowed: (c.allowed || p.allowed || [0]).map(Number)
+    };
+    if (!find(POOLS, s.pool)) throw new Error("Unknown breeding pool: " + s.pool);
+    if (!find(PAIRINGS, s.pairing)) throw new Error("Unknown pairing: " + s.pairing);
+    if (!find(BRACKETS, s.brackets)) throw new Error("Unknown brackets: " + s.brackets);
+    if (s.threshold2 < s.threshold) { var t = s.threshold; s.threshold = s.threshold2; s.threshold2 = t; }
+    if (!s.levels.length) s.levels = [0];
+    return s;
+  }
+
+  function bracketCount(s) { return s.brackets === "profit" ? s.levels.length + 1 : find(BRACKETS, s.brackets).n; }
+
+  /* Labels, best bracket first. */
+  function bracketLabels(s) {
+    var n = bracketCount(s), out = [], i;
+    if (s.brackets === "profit") {
+      var L = s.levels;
+      for (i = L.length; i >= 0; i--) {
+        out.push(i === L.length ? "at or above " + L[i - 1] + "%" : i === 0 ? "below " + L[0] + "%" : L[i - 1] + "% to " + L[i] + "%");
+      }
+      return out;
+    }
+    var nm = { 2: "Half", 3: "Third", 4: "Quartile", 5: "Fifth", 10: "Tenth" }[n] || "Bracket";
+    for (i = 0; i < n; i++) out.push(nm + " " + (i + 1) + (i === 0 ? " (top)" : i === n - 1 ? " (bottom)" : ""));
+    return out;
+  }
+
+  /* Bracket index (0 = best) for every bot in the ranked list. */
+  function bracketsOf(ranked, s) {
+    var N = ranked.length, n = bracketCount(s);
+    return ranked.map(function (b, k) {
+      if (s.brackets !== "profit") return Math.min(n - 1, Math.floor(k * n / N));
+      var pct = (b.lastReturn || 0) * 100, below = 0;
+      for (var j = 0; j < s.levels.length; j++) if (pct >= s.levels[j]) below++;
+      return s.levels.length - below;
+    });
+  }
+
+  function describe(s) {
+    var pool = find(POOLS, s.pool).name, pair = find(PAIRINGS, s.pairing).name, extra = "";
+    if (s.pool === "above") extra = " (" + s.threshold + "% or better)";
+    else if (s.pool === "below") extra = " (below " + s.threshold + "%)";
+    else if (s.pool === "between") extra = " (" + s.threshold + "% to " + s.threshold2 + "%)";
+    else if (s.pool === "topPct" || s.pool === "bottomPct") pool = pool.replace("X", s.pct);
+    var usesBr = s.pool === "brackets" || /Bracket$/.test(s.pairing);
+    var br = usesBr ? "; brackets: " + (s.brackets === "profit" ? "profit levels " + s.levels.join(", ") + "%" : find(BRACKETS, s.brackets).name.toLowerCase()) +
+      (s.pool === "brackets" ? " (" + s.allowed.map(function (i) { return bracketLabels(s)[i]; }).filter(Boolean).join(", ") + ")" : "") : "";
+    var preset = find(PRESETS, s.preset);
+    return (preset && preset.key !== "custom" ? preset.name + ": " : "Custom: ") + pool + extra + ", paired by " + pair.toLowerCase() + br;
+  }
+
+  /* --- pairing helpers --- */
+  function chunk(order, n) {
+    var out = [], L = order.length;
+    if (L < 2) return out;
+    // first pass 1+2, 3+4 ...; if more pairs are needed, bots parent again with the next-nearest partner
+    for (var d = 1; out.length < n; d = d % (L - 1) + 1)
+      for (var off = 0; off < 2 && out.length < n; off++)
+        for (var i = off; i + d < L && out.length < n; i += 2) out.push([order[i], order[i + d]]);
+    return out;
+  }
+  function interleave(order) { var o = [], i = 0, j = order.length - 1; while (i <= j) { o.push(order[i++]); if (i <= j) o.push(order[j--]); } return o; }
+
+  function pairPool(sim, pool, n, s, br, rankOf) {
+    var r = sim.rng, out = [], i, order = pool.slice().sort(function (a, b) { return rankOf(a) - rankOf(b); });
+    if (order.length < 2 || n <= 0) return out;
+    switch (s.pairing) {
+      case "opposite": return chunk(interleave(order), n);
+      case "random":
+        for (i = order.length - 1; i > 0; i--) { var j = Math.floor(r.next() * (i + 1)), t = order[i]; order[i] = order[j]; order[j] = t; }
+        return chunk(order, n);
+      case "closestProfit":
+        return chunk(order.slice().sort(function (a, b) { return (b.lastReturn || 0) - (a.lastReturn || 0); }), n);
+      case "tournament":
+      case "roulette": {
+        var N = order.length;
+        var draw = s.pairing === "tournament"
+          ? function () { var best = N; for (var k = 0; k < 3; k++) best = Math.min(best, Math.floor(r.next() * N)); return order[best]; }
+          : function () { var tot = N * (N + 1) / 2, x = r.next() * tot; for (var k = 0; k < N; k++) { x -= N - k; if (x <= 0) return order[k]; } return order[N - 1]; };
+        for (i = 0; i < n; i++) {
+          var a = draw(), b = a;
+          for (var tries = 0; b === a && tries < 50; tries++) b = draw();
+          if (b === a) b = order[order[0] === a ? 1 : 0];
+          out.push([a, b]);
+        }
+        return out;
+      }
+      case "outbreed":
+      case "inbreed": {
+        while (out.length < n) {
+          var left = order.slice();
+          while (left.length > 1 && out.length < n) {
+            var me = left.shift(), bestK = 0, bestV = s.pairing === "outbreed" ? Infinity : -Infinity;
+            for (var k = 0; k < left.length; k++) {
+              var v = sim.kin(me, left[k]) + (s.pairing === "inbreed" && left[k].house === me.house ? 0.01 : 0);
+              if (s.pairing === "outbreed" ? v < bestV - 1e-12 : v > bestV + 1e-12) { bestV = v; bestK = k; }
+            }
+            out.push([me, left.splice(bestK, 1)[0]]);
+          }
+        }
+        return out;
+      }
+      case "sameBracket":
+      case "crossBracket":
+      case "mirrorBracket": {
+        var groups = {};
+        order.forEach(function (b) { (groups[br.get(b)] = groups[br.get(b)] || []).push(b); });
+        var G = Object.keys(groups).map(Number).sort(function (a, b) { return a - b; }).map(function (k) { return groups[k]; });
+        if (s.pairing === "sameBracket") {
+          var usable = G.filter(function (g) { return g.length >= 2; });
+          if (!usable.length) return chunk(order, n);
+          var cap = usable.map(function (g) { return Math.floor(g.length / 2); }), tot = cap.reduce(function (x, y) { return x + y; }, 0);
+          var want = cap.map(function (c) { return Math.floor(n * c / tot); }), given = want.reduce(function (x, y) { return x + y; }, 0);
+          for (i = 0; given < n; i = (i + 1) % usable.length) { want[i]++; given++; }
+          usable.forEach(function (g, gi) { out = out.concat(chunk(g, want[gi])); });
+          return out;
+        }
+        if (G.length < 2) return chunk(order, n);
+        var used = G.map(function () { return 0; });
+        function next(gi) { var g = G[gi]; return g[used[gi]++ % g.length]; }
+        var lanes = s.pairing === "crossBracket" ? G.length - 1 : Math.ceil(G.length / 2);
+        for (i = 0; i < n; i++) {
+          var lane = i % lanes, ga = lane, gb = s.pairing === "crossBracket" ? lane + 1 : G.length - 1 - lane;
+          if (ga === gb) { var pr = chunk(G[ga].length >= 2 ? G[ga] : order, 1)[0]; out.push(pr); continue; }
+          out.push([next(ga), next(gb)]);
+        }
+        return out;
+      }
+      default: return chunk(order, n);
+    }
+  }
+
+  /* Pick nPairs parent pairs. ranked: whole generation, best first. elite: the usual breeders. */
+  function select(sim, ranked, nPairs, elite) {
+    var s = sim.breedSettings, N = ranked.length, rank = new Map(), br = new Map(), labels = bracketLabels(s), idxRet = sim.lastIdxRet || 0;
+    ranked.forEach(function (b, k) { rank.set(b, k); });
+    bracketsOf(ranked, s).forEach(function (x, k) { br.set(ranked[k], x); });
+    var rankOf = function (b) { return rank.get(b); }, ret = function (b) { return (b.lastReturn || 0) * 100; };
+    var half = Math.ceil(N / 2), note = "";
+    function qualify(fn) { return ranked.filter(fn); }
+    function topUp(pool, loserSide) {
+      if (pool.length >= 2) return pool;
+      var extra = (loserSide ? ranked.slice().reverse() : ranked).filter(function (b) { return pool.indexOf(b) < 0; });
+      note = "fewer than 2 bots qualified; the next in line filled in";
+      return pool.concat(extra.slice(0, 2 - pool.length));
+    }
+    var pairs;
+    if (s.pool === "split") {
+      var top = ranked.slice(0, half), bottom = ranked.slice(half), nTop = Math.ceil(nPairs / 2);
+      pairs = pairPool(sim, top, nTop, s, br, rankOf).concat(pairPool(sim, topUp(bottom, true), nPairs - nTop, s, br, rankOf));
+    } else {
+      var pool;
+      switch (s.pool) {
+        case "all": pool = ranked.slice(); break;
+        case "winners": pool = ranked.slice(0, half); break;
+        case "losers": pool = ranked.slice(N - half); break;
+        case "profitable": pool = qualify(function (b) { return b.lastReturn > 0; }); break;
+        case "unprofitable": pool = qualify(function (b) { return !(b.lastReturn > 0); }); break;
+        case "beatIndex": pool = qualify(function (b) { return b.lastReturn > idxRet; }); break;
+        case "lostToIndex": pool = qualify(function (b) { return !(b.lastReturn > idxRet); }); break;
+        case "above": pool = qualify(function (b) { return ret(b) >= s.threshold; }); break;
+        case "below": pool = qualify(function (b) { return ret(b) < s.threshold; }); break;
+        case "between": pool = qualify(function (b) { return ret(b) >= s.threshold && ret(b) <= s.threshold2; }); break;
+        case "topPct": pool = ranked.slice(0, Math.max(2, Math.round(N * s.pct / 100))); break;
+        case "bottomPct": pool = ranked.slice(N - Math.max(2, Math.round(N * s.pct / 100))); break;
+        case "brackets": pool = qualify(function (b) { return s.allowed.indexOf(br.get(b)) >= 0; }); break;
+        default: pool = elite.slice();
+      }
+      pairs = pairPool(sim, topUp(pool, !!LOSER_POOLS[s.pool]), nPairs, s, br, rankOf);
+    }
+    while (pairs.length < nPairs) pairs.push([ranked[0], ranked[1]]);   // safety net for tiny populations
+    return pairs.slice(0, nPairs).map(function (p) {
+      var a = p[0], b = p[1];
+      if (rankOf(b) < rankOf(a)) { var t = a; a = b; b = t; }   // the better-ranked parent passes on the house name
+      return { a: a, b: b, meta: { rule: s.preset, label: sim.ruleName, rankA: rankOf(a) + 1, rankB: rankOf(b) + 1,
+        retA: a.lastReturn, retB: b.lastReturn, bracketA: labels[br.get(a)], bracketB: labels[br.get(b)], note: note } };
+    });
+  }
+
+  T.Breeding = { POOLS: POOLS, PAIRINGS: PAIRINGS, BRACKETS: BRACKETS, PRESETS: PRESETS, normalize: normalize, describe: describe,
+    select: select, bracketLabels: bracketLabels, bracketCount: bracketCount, bracketsOf: bracketsOf, find: find };
+  // older code and the CLI list presets under this name
+  T.BREEDING_RULES = PRESETS.filter(function (p) { return p.key !== "custom"; }).map(function (p) {
+    return { key: p.key, name: p.name, desc: describe(normalize({ breeding: p.key })) };
+  });
+})(window.T = window.T || {});
+
+</script>
 <script>/* js/sim.js */
 /* Run controller: the box the bots live in.
  *
@@ -2097,18 +2398,6 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     "Rourke", "Sato", "Bellamy", "Quist", "Duarte", "Falk", "Gallo", "Mbeki", "Oyelaran", "Petrov", "Reyes", "Strand", "Thorne", "Vance",
     "Wexler", "Yilmaz", "Zoric", "Abara"];
 
-  /* How partners are chosen. Every rule keeps the population schedule (20 -> 10 -> 20 -> 20 ...). */
-  var BREEDING_RULES = [
-    { key: "ranked", name: "Ranked neighbours", desc: "1st with 2nd, 3rd with 4th, and so on among the breeders." },
-    { key: "assortative", name: "Winners with winners, losers with losers", desc: "Half the pairs come from the top of the table, half from the bottom. Losers' children join the next generation, but losers don't survive themselves." },
-    { key: "disassortative", name: "Winners with losers", desc: "1st with last, 2nd with second-to-last, and so on." },
-    { key: "random", name: "Random mating", desc: "Breeders pair up at random." },
-    { key: "tournament", name: "Tournament", desc: "Each parent is the best of 3 bots drawn at random from the whole generation." },
-    { key: "roulette", name: "Rank roulette", desc: "Parents are drawn from the whole generation; better ranks are drawn more often." },
-    { key: "outbreed", name: "Avoid relatives", desc: "Each breeder picks the best-ranked partner it is least related to." },
-    { key: "inbreed", name: "Keep it in the family", desc: "Each breeder picks its closest relative, preferring the same house." }
-  ];
-
   function Sim(cfg) {
     this.cfg = {
       mult: cfg.mult || 1,
@@ -2120,10 +2409,13 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       detailBudget: cfg.detailBudget || 1500000,
       startCash: cfg.startCash > 0 ? cfg.startCash : 100000,
       breeding: cfg.breeding || "ranked",
+      breedPool: cfg.breedPool, breedPairing: cfg.breedPairing, brackets: cfg.brackets, levels: cfg.levels,
+      threshold: cfg.threshold, threshold2: cfg.threshold2, pct: cfg.pct, allowed: cfg.allowed,
       mutation: cfg.mutation > 0 ? cfg.mutation : 1,
       samplesPerDay: cfg.samplesPerDay >= 0 ? cfg.samplesPerDay : 150
     };
-    this.ruleName = (BREEDING_RULES.filter(function (x) { return x.key === this.cfg.breeding; }, this)[0] || BREEDING_RULES[0]).name;
+    this.breedSettings = T.Breeding.normalize(this.cfg);
+    this.ruleName = T.Breeding.describe(this.breedSettings);
     this.kinMemo = new Map();
     this.pending = [];
     this.forever = this.cfg.generations === 0;
@@ -2173,7 +2465,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     b.house = parents.length ? parents[0].house : HOUSES[founders % HOUSES.length] + (founders >= HOUSES.length ? " " + (Math.floor(founders / HOUSES.length) + 1) : "");
     b.lineageDepth = parents.length ? 1 + Math.max(parents[0].lineageDepth, parents[1].lineageDepth) : 0;
     b.inbreeding = parents.length ? this.kin(parents[0], parents[1]) : 0;
-    b.breedMeta = meta || { rule: parents.length ? this.cfg.breeding : "founder", rankA: "", rankB: "" };
+    b.breedMeta = meta || { rule: "founder", label: "founder", rankA: "", rankB: "", retA: "", retB: "", bracketA: "", bracketB: "", note: "" };
     this.allBots[b.id] = b;
     var c = b.cfg, imp = genome.importance(), names = T.BOT_CONST.FEATURE_NAMES;
     var top = Array.prototype.map.call(imp, function (v, k) { return [v, k]; }).sort(function (a, z) { return z[0] - a[0]; }).slice(0, 3)
@@ -2182,7 +2474,9 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       topFeatures: top, buyThreshold: c.buyTh, sellThreshold: c.sellTh, maxPositions: c.maxPos, positionSize: c.posSize, stopLoss: c.stopLoss,
       takeProfit: c.takeProfit, decisionEveryBars: c.interval, maxHoldDays: c.maxHold, cashReserve: c.cashReserve, shorts: c.shortOn ? "yes" : "no",
       trailingStop: c.trail ? "yes" : "no", conviction: c.conviction, house: b.house, lineageDepth: b.lineageDepth, inbreeding: r4(b.inbreeding),
-      genotype: this.genotypeString(b), traits: this.traitString(b), breedingRule: b.breedMeta.rule,
+      genotype: this.genotypeString(b), traits: this.traitString(b), breedingRule: b.breedMeta.rule, breedingDetail: b.breedMeta.label,
+      parentBrackets: b.breedMeta.bracketA ? b.breedMeta.bracketA + " + " + b.breedMeta.bracketB : "",
+      parentReturns: b.breedMeta.retA === "" ? "" : pctStr(b.breedMeta.retA) + " + " + pctStr(b.breedMeta.retB), breedingNote: b.breedMeta.note,
       parentRanks: b.breedMeta.rankA === "" ? "" : b.breedMeta.rankA + " + " + b.breedMeta.rankB, genome: JSON.stringify(genome.toJSON()) });
     return b;
   };
@@ -2230,6 +2524,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
 
   function barTime(b) { var mins = 570 + b * 5, h = Math.floor(mins / 60), mm = mins % 60; return (h < 10 ? "0" : "") + h + ":" + (mm < 10 ? "0" : "") + mm; }
   function r4(x) { return x === null || x === undefined || !isFinite(x) ? x : Math.round(x * 10000) / 10000; }
+  function pctStr(x) { return (x >= 0 ? "+" : "") + (x * 100).toFixed(2) + "%"; }
   function r6(x) { return x === null || x === undefined || !isFinite(x) ? x : Math.round(x * 1e6) / 1e6; }
   function r2(x) { return x === null || x === undefined || !isFinite(x) ? x : Math.round(x * 100) / 100; }
 
@@ -2287,11 +2582,13 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     var rows = this.bots.map(function (b) { var s = b.stats(); return { bot: b, s: s, fit: self.fitnessOf(s) }; });
     rows.sort(function (a, b) { return b.fit - a.fit; });
     var idxRet = m.index / this.genStartIndex - 1;
+    this.lastIdxRet = idxRet;
     var botRows = [];
     rows.forEach(function (r, k) {
       var b = r.bot, s = r.s, c = b.cfg;
       b.history.push({ gen: g, ret: s.ret, rank: k + 1 });
       b.lastRank = k + 1;
+      b.lastReturn = s.ret;
       botRows.push({
         gen: g, rank: k + 1, id: b.id, bot: b.name, born: b.gen, age: b.age, parents: b.parents.join(" + "), style: b.style,
         returnPct: s.ret, pnl: r2(s.pnl), finalEquity: r2(s.equity), annualizedReturn: s.annReturn, vsIndex: s.ret - idxRet,
@@ -2310,7 +2607,10 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
         maxPositions: c.maxPos, positionSize: c.posSize, stopLoss: c.stopLoss, takeProfit: c.takeProfit,
         decisionEveryBars: c.interval, maxHoldDays: c.maxHold, shorts: c.shortOn ? "yes" : "no", trailingStop: c.trail ? "yes" : "no",
         house: b.house, lineageDepth: b.lineageDepth, inbreeding: r4(b.inbreeding), genotype: self.genotypeString(b), traits: self.traitString(b),
-        breedingRule: b.breedMeta.rule, parentRanks: b.breedMeta.rankA === "" ? "" : b.breedMeta.rankA + " + " + b.breedMeta.rankB
+        breedingRule: b.breedMeta.rule, parentRanks: b.breedMeta.rankA === "" ? "" : b.breedMeta.rankA + " + " + b.breedMeta.rankB,
+        parentReturns: b.breedMeta.retA === "" ? "" : pctStr(b.breedMeta.retA) + " + " + pctStr(b.breedMeta.retB),
+        parentBrackets: b.breedMeta.bracketA ? b.breedMeta.bracketA + " + " + b.breedMeta.bracketB : "", breedingDetail: b.breedMeta.label,
+        breedingNote: b.breedMeta.note
       });
       var tr = T.TRAITS, brow = botRows[botRows.length - 1];
       tr.forEach(function (t) { brow["trait_" + t.key] = b.traits[t.key]; });
@@ -2451,15 +2751,15 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     this.gen++;  // children are born into the next generation
     if (this.gen === 2) {
       // everyone breeds: half as many pairs as bots, one child each
-      pairs = this.makePairs(ranked, ranked.length / 2, ranked);
-      pairs.forEach(function (p) { next.push(self.child(p[0], p[1], r, sigma)); });
+      pairs = T.Breeding.select(this, ranked, ranked.length / 2, ranked);
+      pairs.forEach(function (p) { next.push(self.child(p, r, sigma)); });
     } else {
       var survivors = this.gen === 3 ? ranked : ranked.slice(0, ranked.length / 2);
-      pairs = this.makePairs(ranked, survivors.length / 2, survivors);
+      pairs = T.Breeding.select(this, ranked, survivors.length / 2, survivors);
       for (i = 0; i < survivors.length; i++) { survivors[i].age++; survivors[i].reset(); next.push(survivors[i]); }
       pairs.forEach(function (p) {
-        next.push(self.child(p[0], p[1], r, sigma));
-        next.push(self.child(p[0], p[1], r, sigma));   // twin
+        next.push(self.child(p, r, sigma));
+        next.push(self.child(p, r, sigma));   // twin
       });
     }
     this.gen--;
@@ -2468,48 +2768,8 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     this.markAlive();
   };
 
-  Sim.prototype.child = function (a, b, r, sigma) {
-    if ((b.lastRank || 0) < (a.lastRank || 0)) { var t = a; a = b; b = t; }   // the better-ranked parent passes on the house name
-    return this.newBot(T.Genome.cross(a.genome, b.genome, r, sigma), [a, b], { rule: this.cfg.breeding, rankA: a.lastRank, rankB: b.lastRank });
-  };
-
-  /* Choose nPairs parent pairs. ranked: the whole generation, best first. elite: the bots allowed to breed
-   * under rules that only let survivors breed. Every pair is two different bots. */
-  Sim.prototype.makePairs = function (ranked, nPairs, elite) {
-    var rule = this.cfg.breeding, r = this.rng, out = [], i, self = this, N = ranked.length;
-    function neighbours(list, k) { var o = []; for (var j = 0; j + 1 < list.length && o.length < k; j += 2) o.push([list[j], list[j + 1]]); return o; }
-    function pickOther(fn, not) { for (var tries = 0; tries < 50; tries++) { var x = fn(); if (x !== not) return x; } return ranked[ranked[0] === not ? 1 : 0]; }
-    if (rule === "assortative") {
-      var top = Math.ceil(nPairs / 2);
-      out = neighbours(ranked, top);
-      var bottom = ranked.slice().reverse();
-      neighbours(bottom, nPairs - top).forEach(function (p) { out.push([p[1], p[0]]); });
-    } else if (rule === "disassortative") {
-      for (i = 0; i < nPairs; i++) out.push([ranked[i], ranked[N - 1 - i]]);
-    } else if (rule === "random") {
-      var pool = elite.slice();
-      for (i = pool.length - 1; i > 0; i--) { var j = Math.floor(r.next() * (i + 1)), t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
-      out = neighbours(pool, nPairs);
-    } else if (rule === "tournament" || rule === "roulette") {
-      var draw = rule === "tournament"
-        ? function () { var best = N; for (var k = 0; k < 3; k++) best = Math.min(best, Math.floor(r.next() * N)); return ranked[best]; }
-        : function () { var tot = N * (N + 1) / 2, x = r.next() * tot; for (var k = 0; k < N; k++) { x -= N - k; if (x <= 0) return ranked[k]; } return ranked[N - 1]; };
-      for (i = 0; i < nPairs; i++) { var a = draw(); out.push([a, pickOther(draw, a)]); }
-    } else if (rule === "outbreed" || rule === "inbreed") {
-      var left = elite.slice();
-      while (left.length > 1 && out.length < nPairs) {
-        var me = left.shift(), bestK = -1, bestV = rule === "outbreed" ? Infinity : -Infinity;
-        for (var k = 0; k < left.length; k++) {
-          var v = self.kin(me, left[k]) + (rule === "inbreed" && left[k].house === me.house ? 0.01 : 0);
-          if (rule === "outbreed" ? v < bestV - 1e-12 : v > bestV + 1e-12) { bestV = v; bestK = k; }
-        }
-        out.push([me, left.splice(bestK, 1)[0]]);
-      }
-    } else {
-      out = neighbours(elite, nPairs);
-    }
-    while (out.length < nPairs) out.push([elite[0], elite[1] || ranked[1]]);   // safety net for tiny pools
-    return out;
+  Sim.prototype.child = function (p, r, sigma) {
+    return this.newBot(T.Genome.cross(p.a.genome, p.b.genome, r, sigma), [p.a, p.b], p.meta);
   };
 
   /* Training data: a labeled sample of stocks at each close. Labels are filled in as the future arrives. */
@@ -2570,6 +2830,8 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       var row = { id: id, bot: b.name, house: b.house, born: b.gen, lineageDepth: b.lineageDepth, parentA: pa ? pa.name : "", parentB: pb ? pb.name : "",
         parentAHouse: pa ? pa.house : "", parentBHouse: pb ? pb.house : "", grandparents: gp.join(", "),
         breedingRule: b.breedMeta.rule, parentRanks: b.breedMeta.rankA === "" ? "" : b.breedMeta.rankA + " + " + b.breedMeta.rankB,
+        parentReturns: b.breedMeta.retA === "" ? "" : pctStr(b.breedMeta.retA) + " + " + pctStr(b.breedMeta.retB),
+        parentBrackets: b.breedMeta.bracketA ? b.breedMeta.bracketA + " + " + b.breedMeta.bracketB : "", breedingDetail: b.breedMeta.label,
         inbreeding: r4(b.inbreeding), children: ch.length, grandchildren: grand,
         status: self.alive[id] && !self.done ? "alive" : rr.length ? "retired" : "never traded", generationsTraded: rr.length,
         compoundedReturn: rr.length ? rr.reduce(function (a, x) { return a * (1 + x); }, 1) - 1 : "", genotype: self.genotypeString(b) };
@@ -2694,7 +2956,6 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
   T.Sim = Sim;
   T.stat = { mean: mean, median: median, stdev: stdev };
   T.DETAIL_TABLES = DETAIL;
-  T.BREEDING_RULES = BREEDING_RULES;
 })(window.T = window.T || {});
 
 </script>
@@ -3547,7 +3808,8 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     var kids = Object.keys(all).map(function (k) { return all[k]; }).filter(function (x) { return x.parentIds.indexOf(b.id) >= 0; });
     body.appendChild(el("p", "hint", "House " + b.house + ", generation depth " + b.lineageDepth + ". " +
       (pa ? "Parents: " + pa.name + " (" + pa.house + ", ranked " + b.breedMeta.rankA + ") and " + pb.name + " (" + pb.house + ", ranked " + b.breedMeta.rankB + "), paired by " +
-        ((T.BREEDING_RULES.filter(function (x) { return x.key === b.breedMeta.rule; })[0] || {}).name || b.breedMeta.rule) + ". " : "Founder of the house. ") +
+        (b.breedMeta.label || b.breedMeta.rule) + (b.breedMeta.bracketA ? " (brackets: " + b.breedMeta.bracketA + " and " + b.breedMeta.bracketB + ")" : "") +
+        ". Parents' returns: " + pct(b.breedMeta.retA) + " and " + pct(b.breedMeta.retB) + ". " + (b.breedMeta.note ? "Note: " + b.breedMeta.note + ". " : "") : "Founder of the house. ") +
       (gps.length ? "Grandparents: " + gps.join(", ") + ". " : "") +
       (kids.length ? "Children: " + kids.map(function (x) { return x.name; }).join(", ") + ". " : "No children yet. ") +
       "Inbreeding coefficient " + b.inbreeding.toFixed(3) + (b.inbreeding >= 0.25 ? " (as close as full siblings' children)" : b.inbreeding >= 0.0625 ? " (as close as first cousins' children or closer)" : "") + "."));
@@ -3745,6 +4007,86 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     });
   }
 
+  /* ---------- breeding settings ---------- */
+  var BR = T.Breeding, PRESET_GROUPS = [
+    ["Winners and losers", ["ranked", "winners", "losers", "assortative", "disassortative"]],
+    ["By profit", ["profitable", "unprofitable", "beatIndex", "above", "between", "topPct", "bottomPct"]],
+    ["By bracket", ["sameBracket", "crossBracket", "mirrorBracket", "topBrackets", "profitLevels"]],
+    ["Other", ["random", "tournament", "roulette", "outbreed", "inbreed"]],
+    ["Your own", ["custom"]]
+  ];
+  function fillSelect(id, list) { var sel = $(id); list.forEach(function (x) { var o = el("option", null, x.name); o.value = x.key; sel.appendChild(o); }); }
+  function wireBreeding() {
+    PRESET_GROUPS.forEach(function (g) {
+      var og = document.createElement("optgroup"); og.label = g[0];
+      g[1].forEach(function (k) { var p = BR.find(BR.PRESETS, k); if (p) { var o = el("option", null, p.name); o.value = k; og.appendChild(o); } });
+      $("inBreed").appendChild(og);
+    });
+    fillSelect("inPool", BR.POOLS); fillSelect("inPair", BR.PAIRINGS); fillSelect("inBrackets", BR.BRACKETS);
+    $("inBreed").addEventListener("change", function () { if (this.value !== "custom") loadBreeding({ breeding: this.value }); else refreshBreeding(); });
+    ["inPool", "inPair", "inBrackets", "inThresh", "inThresh2", "inPct", "inLevels"].forEach(function (id) {
+      $(id).addEventListener(id === "inLevels" || /Thresh|Pct/.test(id) ? "input" : "change", function () { $("inBreed").value = "custom"; refreshBreeding(); });
+    });
+    $("allowedBoxes").addEventListener("change", function () { $("inBreed").value = "custom"; refreshBreeding(); });
+    loadBreeding(S.cfg);
+  }
+  function loadBreeding(cfg) {
+    var s;
+    try { s = BR.normalize(cfg); } catch (e) { s = BR.normalize({}); }
+    $("inBreed").value = s.preset; $("inPool").value = s.pool; $("inPair").value = s.pairing; $("inBrackets").value = s.brackets;
+    $("inThresh").value = s.threshold; $("inThresh2").value = s.threshold2; $("inPct").value = s.pct; $("inLevels").value = s.levels.join(", ");
+    renderAllowed(s, s.allowed);
+    refreshBreeding();
+  }
+  function renderAllowed(s, checked) {
+    var box = $("allowedBoxes"), labels = BR.bracketLabels(s);
+    clear(box);
+    labels.forEach(function (lab, k) {
+      var l = el("label", "check"), c = el("input"); c.type = "checkbox"; c.value = k; c.checked = checked.indexOf(k) >= 0;
+      l.appendChild(c); l.appendChild(document.createTextNode(" " + lab)); box.appendChild(l);
+    });
+  }
+  function readBreeding() {
+    var levels = $("inLevels").value.split(/[,\s]+/).filter(function (x) { return x !== ""; }).map(Number);
+    var out = { breeding: $("inBreed").value, breedPool: $("inPool").value, breedPairing: $("inPair").value, brackets: $("inBrackets").value,
+      levels: levels, threshold: $("inThresh").value, threshold2: $("inThresh2").value, pct: +$("inPct").value,
+      allowed: Array.prototype.filter.call($("allowedBoxes").querySelectorAll("input"), function (c) { return c.checked; }).map(function (c) { return +c.value; }) };
+    if (out.brackets === "profit" && (!levels.length || levels.some(function (x) { return !isFinite(x); }))) out.error = "Profit levels must be numbers separated by commas, like -2, 0, 2.";
+    else if (out.breedPool === "brackets" && !out.allowed.length) out.error = "Tick at least one bracket that can breed.";
+    else if (/^(above|below|between)$/.test(out.breedPool) && !isFinite(parseFloat(out.threshold))) out.error = "Enter a return level, for example 1 for +1%.";
+    else if (out.breedPool === "between" && !isFinite(parseFloat(out.threshold2))) out.error = "Enter the upper return level.";
+    else if (/Pct$/.test(out.breedPool) && !(out.pct >= 1 && out.pct <= 100)) out.error = "The share must be between 1% and 100%.";
+    return out;
+  }
+  function refreshBreeding() {
+    var r = readBreeding(), pool = r.breedPool, pair = r.breedPairing;
+    var usesBr = pool === "brackets" || /Bracket$/.test(pair);
+    $("fThresh").hidden = !/^(above|below|between)$/.test(pool);
+    $("lblThresh").textContent = pool === "between" ? "Lower return level (%)" : "Return level (%)";
+    $("fThresh2").hidden = pool !== "between";
+    $("fPct").hidden = !/Pct$/.test(pool);
+    $("fBrackets").hidden = !usesBr;
+    $("fLevels").hidden = !usesBr || r.brackets !== "profit";
+    $("fAllowed").hidden = pool !== "brackets";
+    $("poolHint").textContent = BR.find(BR.POOLS, pool).desc;
+    $("pairHint").textContent = BR.find(BR.PAIRINGS, pair).desc;
+    var sum = $("breedSummary");
+    if (!r.error) {
+      try {
+        var s = BR.normalize(r);
+        if (pool === "brackets" && $("allowedBoxes").children.length !== BR.bracketCount(s)) renderAllowed(s, r.allowed.filter(function (k) { return k < BR.bracketCount(s); }));
+        else Array.prototype.forEach.call($("allowedBoxes").querySelectorAll("label"), function (l, k) { l.lastChild.textContent = " " + BR.bracketLabels(s)[k]; });
+        r = readBreeding();
+        if (!r.error) {
+          sum.textContent = BR.describe(BR.normalize(r)) + ". The top half still survives each generation from Gen 3 on; only who parents the children changes.";
+          sum.classList.remove("bad");
+          return;
+        }
+      } catch (e) { r.error = e.message; }
+    }
+    sum.textContent = r.error; sum.classList.add("bad");
+  }
+
   function wire() {
     T.SECTORS.forEach(function (s, k) { var o = el("option", null, s); o.value = k; $("sectorSel").appendChild(o); });
     $("btnPlay").addEventListener("click", function () {
@@ -3782,7 +4124,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       mult = S.cfg.mult; popText();
       $("inGens").value = S.cfg.generations || 6; $("inForever").checked = !!S.cfg.forever; $("inGens").disabled = !!S.cfg.forever;
       $("inBudget").value = String(S.cfg.detailBudget || 1500000); $("inDays").value = S.cfg.daysPerGen; $("inCash").value = S.cfg.startCash || 100000; $("inSeed").value = S.cfg.seed; $("inFit").value = S.cfg.fitness;
-      $("inBreed").value = S.cfg.breeding || "ranked"; $("inMut").value = String(S.cfg.mutation || 1); breedHint();
+      $("inMut").value = String(S.cfg.mutation || 1); loadBreeding(S.cfg);
       $("newErr").hidden = true;
       $("dlgNew").showModal();
     });
@@ -3790,18 +4132,18 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     $("popHalf").addEventListener("click", function () { if (mult > 1) mult /= 2; popText(); });
     $("btnCancelNew").addEventListener("click", function () { $("dlgNew").close(); });
     $("inForever").addEventListener("change", function () { $("inGens").disabled = this.checked; });
-    T.BREEDING_RULES.forEach(function (r) { var o = el("option", null, r.name); o.value = r.key; $("inBreed").appendChild(o); });
-    function breedHint() { var r = T.BREEDING_RULES.filter(function (x) { return x.key === $("inBreed").value; })[0]; $("breedHint").textContent = r ? r.desc : ""; }
-    $("inBreed").addEventListener("change", breedHint);
-    breedHint();
+    wireBreeding();
     $("formNew").addEventListener("submit", function (e) {
       var forever = $("inForever").checked;
       var g = forever ? 0 : +$("inGens").value, d = +$("inDays").value, s = +$("inSeed").value, cash = +$("inCash").value, err = $("newErr");
       var bad = !forever && !(g >= 2 && g <= 100000) ? "Generations must be between 2 and 100,000, or tick Run forever." : !(d >= 1 && d <= 120) ? "Days per generation must be between 1 and 120." :
         !(s >= 1) ? "Seed must be a positive whole number." : !(cash >= 100 && cash <= 1e12) ? "Starting cash must be between $100 and $1,000,000,000,000." : "";
+      var br = readBreeding();
+      if (!bad && br.error) bad = br.error;
       if (bad) { e.preventDefault(); err.textContent = bad; err.hidden = false; return; }
       build({ mult: mult, generations: Math.round(g), forever: forever, daysPerGen: Math.round(d), seed: Math.round(s), fitness: $("inFit").value,
-        detailBudget: +$("inBudget").value, startCash: Math.round(cash * 100) / 100, breeding: $("inBreed").value, mutation: +$("inMut").value });
+        detailBudget: +$("inBudget").value, startCash: Math.round(cash * 100) / 100, mutation: +$("inMut").value, breeding: br.breeding, breedPool: br.breedPool,
+        breedPairing: br.breedPairing, brackets: br.brackets, levels: br.levels, threshold: br.threshold, threshold2: br.threshold2, pct: br.pct, allowed: br.allowed });
     });
     $("btnCloseBot").addEventListener("click", function () { $("dlgBot").close(); });
     $("btnCloseReport").addEventListener("click", function () { $("dlgReport").close(); });

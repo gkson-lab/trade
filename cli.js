@@ -14,29 +14,43 @@ var fs = require("fs"), path = require("path"), vm = require("vm");
 var args = {};
 process.argv.slice(2).forEach(function (a, i, arr) { if (a.indexOf("--") === 0) args[a.slice(2)] = arr[i + 1] && arr[i + 1].indexOf("--") !== 0 ? arr[i + 1] : true; });
 if (args.help) {
-  console.log("usage: node cli.js [--mult 1] [--gens 6 | --forever] [--days 10] [--cash 100000] [--breeding ranked|assortative|disassortative|random|tournament|roulette|outbreed|inbreed] [--mutation 1] [--samples 150] [--seed N] [--fitness return|risk] [--symbols N]\n" +
+  console.log("usage: node cli.js [--mult 1] [--gens 6 | --forever] [--days 10] [--cash 100000] [--breeding PRESET | --pool P --pairing Q --brackets B ...] [--list-breeding] [--mutation 1] [--samples 150] [--seed N] [--fitness return|risk] [--symbols N]\n" +
     "                   [--max-gens N] [--max-minutes M] [--budget ROWS] [--out out] [--no-master] [--no-combine] [--no-bots]");
   process.exit(0);
 }
 
 global.window = global;
 var root = __dirname;
-["js/symbols.js", "js/rng.js", "js/news.js", "js/market.js", "js/bots.js", "js/sim.js", "js/report.js"].forEach(function (f) {
+["js/symbols.js", "js/rng.js", "js/news.js", "js/market.js", "js/bots.js", "js/breeding.js", "js/sim.js", "js/report.js"].forEach(function (f) {
   vm.runInThisContext(fs.readFileSync(path.join(root, f), "utf8"), { filename: f });
 });
 var XLSX = require(path.join(root, "vendor", "xlsx.full.min.js"));
 
-if (args.breeding && !T.BREEDING_RULES.some(function (r) { return r.key === args.breeding; })) {
-  console.error("Unknown --breeding " + args.breeding + ". Choose one of: " + T.BREEDING_RULES.map(function (r) { return r.key; }).join(", "));
+if (args.breeding && !T.Breeding.find(T.Breeding.PRESETS, args.breeding)) {
+  console.error("Unknown --breeding " + args.breeding + ". Choose one of: " + T.Breeding.PRESETS.map(function (r) { return r.key; }).join(", "));
   process.exit(2);
 }
+if (args["list-breeding"]) {
+  console.log("Presets (--breeding):");
+  T.Breeding.PRESETS.forEach(function (p) { console.log("  " + p.key.padEnd(15) + p.name); });
+  console.log("\nPools (--pool):"); T.Breeding.POOLS.forEach(function (p) { console.log("  " + p.key.padEnd(15) + p.desc); });
+  console.log("\nPairings (--pairing):"); T.Breeding.PAIRINGS.forEach(function (p) { console.log("  " + p.key.padEnd(15) + p.desc); });
+  console.log("\nBrackets (--brackets): " + T.Breeding.BRACKETS.map(function (b) { return b.key; }).join(", ") + "  (profit uses --levels -2,0,2)");
+  console.log("Also: --threshold N --threshold2 N (percent), --pct N (top/bottom share), --allowed 1,2 (bracket numbers, 1 = top)");
+  process.exit(0);
+}
 var forever = !!args.forever || args.gens === "0";
-var sim = new T.Sim({
+var sim;
+try { sim = new T.Sim({
   mult: +(args.mult || 1), generations: forever ? 0 : +(args.gens || 6), daysPerGen: +(args.days || 10),
   seed: +(args.seed || 20270104), fitness: args.fitness || "return", maxSymbols: +(args.symbols || 0),
   detailBudget: +(args.budget || 400000), startCash: +(args.cash || 100000),
-  breeding: args.breeding || "ranked", mutation: +(args.mutation || 1), samplesPerDay: args.samples !== undefined ? +args.samples : 150
-});
+  breeding: args.breeding || (args.pool || args.pairing ? "custom" : "ranked"), mutation: +(args.mutation || 1),
+  breedPool: args.pool, breedPairing: args.pairing, brackets: args.brackets,
+  levels: args.levels ? String(args.levels).split(",").map(Number) : undefined, threshold: args.threshold, threshold2: args.threshold2,
+  pct: args.pct ? +args.pct : undefined, allowed: args.allowed ? String(args.allowed).split(",").map(function (x) { return +x - 1; }) : undefined, samplesPerDay: args.samples !== undefined ? +args.samples : 150
+}); } catch (e) { console.error(e.message + ". Run with --list-breeding to see the choices."); process.exit(2); }
+console.log("Breeding: " + sim.ruleName);
 var outDir = path.join(args.out || "out", "run-" + sim.cfg.seed + "-x" + sim.cfg.mult);
 fs.mkdirSync(outDir, { recursive: true });
 var maxGens = args["max-gens"] ? +args["max-gens"] : 0, deadline = args["max-minutes"] ? Date.now() + args["max-minutes"] * 60000 : 0;
