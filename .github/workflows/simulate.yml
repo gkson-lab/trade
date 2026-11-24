@@ -31,6 +31,10 @@ on:
         description: "Save the data as a GitHub Release"
         type: boolean
         default: true
+      send_to_docs:
+        description: "Trading data bot: open a pull request in gk-research-group/internal-documents- (needs the DOCS_TOKEN secret)"
+        type: boolean
+        default: true
   # To run on a timer as well, uncomment these two lines (cron is in UTC; this is daily at 06:17).
   # schedule:
   #   - cron: "17 6 * * *"
@@ -49,6 +53,8 @@ jobs:
           node-version: 22
       - name: Run the box
         env:
+          DOCS_TOKEN: ${{ secrets.DOCS_TOKEN }}
+          SEND_DOCS: ${{ github.event_name == 'schedule' || inputs.send_to_docs }}
           GENS: ${{ inputs.generations || '0' }}
           MINUTES: ${{ inputs.minutes || '60' }}
           DAYS: ${{ inputs.days || '10' }}
@@ -58,8 +64,13 @@ jobs:
           SEED: ${{ inputs.seed || github.run_number }}
         run: |
           if [ "$GENS" = "0" ]; then G="--forever"; else G="--gens $GENS"; fi
+          PUSH=""
+          if [ "$SEND_DOCS" = "true" ]; then
+            if [ -n "$DOCS_TOKEN" ]; then PUSH="--push-docs --docs-link https://github.com/${{ github.repository }}/releases/tag/run-${{ github.run_number }}"
+            else echo "::notice::Trading data bot skipped: add a DOCS_TOKEN secret (fine-grained token for gk-research-group/internal-documents-, Contents and Pull requests read/write)."; fi
+          fi
           node cli.js $G --max-minutes "$MINUTES" --days "$DAYS" --mult "$MULT" --breeding "$BREEDING" \
-            --samples "$SAMPLES" --seed "$SEED" --gzip --out out
+            --samples "$SAMPLES" --seed "$SEED" --gzip --out out $PUSH
           mkdir -p dist-run
           tar -czf "dist-run/trade-box-run-${{ github.run_number }}.tar.gz" -C out .
           # GitHub release files max out at 2 GB: split big archives into 1.9 GB parts (train.yml joins them)

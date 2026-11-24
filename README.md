@@ -17,7 +17,7 @@ The market is fictional. The 6,138 symbols are real NASDAQ, NYSE and AMEX listin
 | Endless | Browser: **New run → Run forever**, then **Finish** when you want to stop. CLI: `node cli.js --forever` (Ctrl+C finishes the current generation and saves everything; `--max-gens N` and `--max-minutes M` also work) |
 | Combine CSVs | `node tools/combine.js out/run-20270104-x1` or `node tools/combine.js a.zip b/*.csv --out merged.xlsx`. In the browser: **Data → Combine CSVs into one spreadsheet** |
 | Update checker | Built into the page: checks GitHub every 5-10 minutes and shows a **Reload** bar when a new commit lands on `main`. For a local clone: `node tools/check-updates.js` (add `--pull` to fast-forward automatically, `--branch` to pick a branch, `--once` for a single check) |
-| Tests | `node tests/run.js` and `node tests/final.js` |
+| Tests | `node tests/run.js`, `node tests/final.js` and `node tests/docs.js` |
 
 ## Final training mode: the trading bot
 
@@ -58,6 +58,40 @@ node tools/final_train.js --sample            # practice data
 - **Saved model:** must reload and give identical predictions.
 
 Most models trained on prices alone land close to chance. The screen says so when that happens, so treat any signal as something to paper-trade first.
+
+## Trading data bot: everything goes to the internal documents repo
+
+Everything the bots collect can go straight to **gk-research-group/internal-documents-** as a pull request authored by you. It lands under `shelf-12-trading-data/`, following that repo's handling rules:
+
+- every folder gets a README with the confidential header and its own document ID
+- no tokens are ever written anywhere
+
+| From | How |
+|---|---|
+| The app | The **Trading data bot** button in the top bar. Choose this simulation run or the latest final training and press **Open pull request**. Tick **Send automatically** to open a pull request whenever a run or a training finishes; endless runs update their pull request every 25 generations. |
+| Command line | `node cli.js --push-docs` (endless runs update the pull request every `--docs-every` generations) and `node tools/final_train.js --push-docs`. Uses `DOCS_TOKEN`, `GH_TOKEN` or `GITHUB_TOKEN`, or your `gh auth login`. |
+| Cloud | The **Simulate** workflow sends each run when the repository secret `DOCS_TOKEN` is set. The pull request links the full archive in the run's release. |
+
+**What a simulation run sends:**
+
+- summary, generations, genetics, bot profiles, family tree, pedigree, bots, genomes, market and sector days, symbols
+- the training tables (market samples, round trips)
+- trades, bot days, positions, news, intraday equity
+
+**What a final training sends:**
+
+- verdict and metrics, predictions, calibration, outcome ranges, backtest and trades, feature importance, test predictions
+- the trained model and the training table
+
+Big tables are gzipped CSV. Anything past 90 MB is left out and listed in the folder README.
+
+**The token:** a fine-grained personal access token.
+
+- Resource owner `gk-research-group`, only the `internal-documents-` repository.
+- **Contents** and **Pull requests** set to read and write.
+- In the app it stays in your browser (only for the session unless you tick *Remember*) and is sent only to api.github.com.
+
+**Where it can't send directly:** the claude.ai phone link can't reach GitHub. There, use **Download the bundle** and **GitHub's upload page**, which opens a pull request from the web.
 
 ## The bots
 
@@ -286,6 +320,8 @@ cli.js                       headless runner (endless mode, writes each generati
 tools/combine.js             merge generation CSVs / ZIPs into one workbook
 tools/check-updates.js       update checker for a local clone
 js/final.js, js/final-ui.js   final training mode: the trading bot for real price data
+js/docs-push.js, js/docs-ui.js Trading data bot: pull requests to the internal documents repo
+tools/docs_node.js           Trading data bot from Node (token or gh login)
 tools/final_train.js         final training mode from the command line
 tools/train_model.py         train one model on any number of runs (pandas + scikit-learn)
 .github/workflows/simulate.yml   run the box on GitHub's free runners, save data as a release

@@ -10,6 +10,8 @@
  *           --no-stops --stop 8 --target 15 --amount 10000 --buy-at 0.55 --max-rows 250000 --no-refit
  * Output (--out final): results.xlsx, predictions.csv, backtest.csv, trades.csv, model.json, and with
  *           --save-training, training-data.csv.gz (x_ inputs, y_ targets).
+ *           --push-docs sends everything to gk-research-group/internal-documents- as a pull request (Trading data bot;
+ *           --docs-repo to change; token from DOCS_TOKEN / GH_TOKEN / GITHUB_TOKEN or the GitHub CLI login).
  * Nothing here places orders. Results are estimates from past prices, not investment advice. */
 "use strict";
 var fs = require("fs"), path = require("path"), vm = require("vm"), zlib = require("zlib");
@@ -21,7 +23,7 @@ if (args.help || (!args.data && !args.sample)) {
 }
 global.window = global;
 var root = path.join(__dirname, "..");
-["js/symbols.js", "js/rng.js", "js/news.js", "js/market.js", "js/report.js", "js/final.js"].forEach(function (f) {
+["js/symbols.js", "js/rng.js", "js/news.js", "js/market.js", "js/report.js", "js/final.js", "js/docs-push.js"].forEach(function (f) {
   vm.runInThisContext(fs.readFileSync(path.join(root, f), "utf8"), { filename: f });
 });
 var XLSX = require(path.join(root, "vendor", "xlsx.full.min.js"));
@@ -91,5 +93,7 @@ F.run(ds, cfg, function (stage, frac, text) { if (text !== lastMsg && (stage !==
     fs.writeFileSync(path.join(out, "model.json"), JSON.stringify(res.model));
     if (args["save-training"]) fs.writeFileSync(path.join(out, "training-data.csv.gz"), zlib.gzipSync(T.Report.toCSV(F.trainingRows(res.features))));
     console.log("Wrote results.xlsx, predictions.csv, backtest.csv, trades.csv, model.json" + (args["save-training"] ? ", training-data.csv.gz" : "") + " to " + out + " in " + ((Date.now() - t0) / 1000).toFixed(1) + "s.");
+    if (args["push-docs"]) return require("./docs_node.js").send(T.DocsPush.finalBundle(res, !!args.sample), { repo: args["docs-repo"], base: args["docs-base"] })
+      .then(function (r) { console.log("  Trading data bot: opened " + r.url + " (" + r.files + " files)"); });
   })
   .catch(function (e) { process.stdout.write("\n"); console.error(e.message); process.exit(1); });

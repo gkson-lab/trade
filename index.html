@@ -49,6 +49,10 @@
     <button id="btnFinish" class="btn sim-only" type="button">Finish</button>
     <button id="btnData" class="btn sim-only" type="button">Data</button>
     <button id="btnNew" class="btn sim-only" type="button">New run</button>
+    <button id="btnDataBot" class="btn databot" type="button" aria-haspopup="dialog" aria-label="Trading data bot" title="Trading data bot">
+      <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 3v12m0 0a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm12-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 0v3a3 3 0 0 1-3 3H9"/></svg>
+      <span>Trading data bot</span><span class="dot" id="dataBotDot" hidden></span>
+    </button>
     <button id="btnTheme" class="btn icon" type="button" aria-label="Toggle light or dark theme">
       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
     </button>
@@ -368,6 +372,47 @@
   </form>
 </dialog>
 
+<dialog id="dlgDocs" aria-labelledby="dlgDocsTitle">
+  <form class="dlg" id="formDocs">
+    <div class="dlg-top"><h2 id="dlgDocsTitle">Trading data bot</h2>
+      <button type="button" class="btn icon" id="btnCloseDocs" aria-label="Close">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <p class="hint">Sends the data your bots collect to the internal documents repository as a pull request, under your GitHub account.
+      It lands in <code>shelf-12-trading-data/</code> with a confidential header and document ID, following the repository's handling rules.</p>
+    <fieldset class="field plain"><legend class="label">What to send</legend>
+      <label class="check"><input type="radio" name="docsWhat" value="sim" id="docsWhatSim" checked> <span id="docsSimLabel">This simulation run</span></label>
+      <label class="check"><input type="radio" name="docsWhat" value="final" id="docsWhatFinal"> <span id="docsFinalLabel">Latest final training results</span></label>
+    </fieldset>
+    <div class="grid2">
+      <div class="field"><label class="label" for="docsRepo">Repository</label><input class="input" id="docsRepo" type="text" spellcheck="false" autocomplete="off"></div>
+      <div class="field"><label class="label" for="docsBase">Into branch</label><input class="input" id="docsBase" type="text" value="main" spellcheck="false" autocomplete="off"></div>
+    </div>
+    <div class="field"><label class="label" for="docsToken">GitHub token</label>
+      <input class="input" id="docsToken" type="password" autocomplete="off" spellcheck="false" aria-describedby="docsTokenHint">
+      <span class="hint" id="docsTokenHint">Kept only in this browser and sent only to api.github.com. Never saved to any repository.</span>
+      <label class="check"><input type="checkbox" id="docsRemember"> Remember on this device (otherwise it's forgotten when you close the tab)</label>
+      <details class="how"><summary>How to make a token</summary>
+        <ol>
+          <li>On GitHub, open Settings, then Developer settings, then Personal access tokens, then Fine-grained tokens, and choose Generate new token.</li>
+          <li>Resource owner: <b>gk-research-group</b>. Repository access: only <b>internal-documents-</b>.</li>
+          <li>Repository permissions: <b>Contents</b> read and write, <b>Pull requests</b> read and write. Nothing else.</li>
+          <li>If the organization requires approval for fine-grained tokens, approve it as an owner.</li>
+        </ol>
+      </details>
+    </div>
+    <div class="field"><label class="check"><input type="checkbox" id="docsAuto"> Send automatically: open a pull request when a run or a training finishes</label>
+      <span class="hint">In endless runs the run's pull request is also updated every <input class="input tiny" id="docsEvery" type="number" min="1" max="10000" value="25" aria-label="Generations between updates"> generations.</span></div>
+    <div class="dlg-actions left">
+      <button type="submit" class="btn primary" id="btnDocsSend">Open pull request</button>
+      <button type="button" class="btn" id="btnDocsZip">Download the bundle (.zip)</button>
+      <a class="btn link-btn" id="docsUpload" href="#" target="_blank" rel="noopener">GitHub's upload page</a>
+    </div>
+    <p class="hint" id="docsZipHint">No token, or GitHub blocked on this page? Download the bundle, open GitHub's upload page, drop the files in, and pick "Create a new branch and start a pull request".</p>
+    <p class="docs-status" id="docsStatus" role="status"></p>
+    <p class="err" id="docsErr" role="alert" hidden></p>
+  </form>
+</dialog>
+
 <dialog id="dlgFinish" aria-labelledby="dlgFinishTitle">
   <div class="dlg">
     <h2 id="dlgFinishTitle">Finish the run</h2>
@@ -437,6 +482,8 @@
 <script src="js/final.js"></script>
 <script src="js/app.js"></script>
 <script src="js/final-ui.js"></script>
+<script src="js/docs-push.js"></script>
+<script src="js/docs-ui.js"></script>
 <script src="js/updates.js"></script>
 <script src="vendor/xlsx.full.min.js" defer></script>
 </body>

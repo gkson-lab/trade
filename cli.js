@@ -10,6 +10,9 @@
  *   --bot-folders   bots/<name>/*.csv, the same rows split per bot
  * Size: --gzip writes .csv.gz (about 3x smaller; pandas and tools/combine.js read it directly),
  *       --lean = --gzip plus 50 training samples a day instead of 150, --samples N sets that directly.
+ * Trading data bot: --push-docs opens a pull request with the run's data in gk-research-group/internal-documents-
+ *   (--docs-repo to change), updated every --docs-every generations in endless runs (default 25) and at the end.
+ *   Uses DOCS_TOKEN / GH_TOKEN / GITHUB_TOKEN, or the GitHub CLI login.
  * Memory: --budget <cells kept in memory, ~50 bytes each; default 6,000,000>, --history <generations of per-bot history
  *   kept in memory, default 300>. The gen folders on disk always hold everything, including births.csv (every bot born). */
 "use strict";
@@ -19,13 +22,14 @@ var args = {};
 process.argv.slice(2).forEach(function (a, i, arr) { if (a.indexOf("--") === 0) args[a.slice(2)] = arr[i + 1] && arr[i + 1].indexOf("--") !== 0 ? arr[i + 1] : true; });
 if (args.help) {
   console.log("usage: node cli.js [--mult 1] [--gens 6 | --forever] [--days 10] [--cash 100000] [--breeding PRESET | --pool P --pairing Q --brackets B ...] [--list-breeding] [--mutation 1] [--samples 150] [--seed N] [--fitness return|risk] [--symbols N]\n" +
-    "                   [--max-gens N] [--max-minutes M] [--budget CELLS] [--history GENS] [--out out] [--gzip] [--lean] [--xlsx] [--bot-folders]");
+    "                   [--max-gens N] [--max-minutes M] [--budget CELLS] [--history GENS] [--out out] [--gzip] [--lean] [--xlsx] [--bot-folders]\n" +
+    "                   [--push-docs] [--docs-repo owner/repo] [--docs-every N] [--docs-link URL]");
   process.exit(0);
 }
 
 global.window = global;
 var root = __dirname;
-["js/symbols.js", "js/rng.js", "js/news.js", "js/market.js", "js/bots.js", "js/breeding.js", "js/sim.js", "js/report.js"].forEach(function (f) {
+["js/symbols.js", "js/rng.js", "js/news.js", "js/market.js", "js/bots.js", "js/breeding.js", "js/sim.js", "js/report.js", "js/docs-push.js"].forEach(function (f) {
   vm.runInThisContext(fs.readFileSync(path.join(root, f), "utf8"), { filename: f });
 });
 var XLSX = require(path.join(root, "vendor", "xlsx.full.min.js"));
@@ -77,6 +81,7 @@ sim.on(function (type, d) {
     "  worst " + pct(s.worstReturn) + "  SIM500 " + pct(s.indexReturn) + "  Sharpe " + s.avgSharpe.toFixed(2) + "  trades " + s.totalTrades +
     "  heap " + (process.memoryUsage().heapUsed / 1048576).toFixed(0) + "MB");
   if ((maxGens && s.gen >= maxGens) || (deadline && Date.now() > deadline)) sim.stop();
+  if (PUSH && DOCS_EVERY && s.gen % DOCS_EVERY === 0 && !d.final && !sim.stopRequested) pushDue = true;
 });
 
 var stopping = false;
@@ -88,11 +93,27 @@ process.on("SIGINT", function () {
 });
 
 // run in slices so Ctrl+C can be handled
-(function loop() {
-  var until = Date.now() + 200;
-  while (!sim.done && Date.now() < until) sim.step();
-  if (!sim.done) return setImmediate(loop);
+// Trading data bot: --push-docs sends the run to the internal documents repo as a pull request (updated every
+// --docs-every generations during long runs, and once more at the end)
+var PUSH = !!args["push-docs"], DOCS_EVERY = args["docs-every"] !== undefined ? +args["docs-every"] : (sim.forever ? 25 : 0);
+var docsState = null, pushDue = false;
+async function pushDocs() {
+  var r = await require("./tools/docs_node.js").send(T.DocsPush.simBundle(sim), { repo: args["docs-repo"], base: args["docs-base"], state: docsState, link: args["docs-link"] });
+  docsState = { branch: r.branch, pr: r.pr };
+  console.log("  Trading data bot: " + (r.updated ? "updated " : "opened ") + r.url + " (" + r.files + " files, " + (r.bytes / 1048576).toFixed(1) + " MB" +
+    (r.omitted.length ? ", " + r.omitted.length + " big table(s) left out for size" : "") + ")");
+}
+
+(async function loop() {
+  for (;;) {
+    var until = Date.now() + 200;
+    while (!sim.done && Date.now() < until && !pushDue) sim.step();
+    if (pushDue) { pushDue = false; try { await pushDocs(); } catch (e) { console.error(e.message); } }
+    if (sim.done) break;
+    await new Promise(function (res) { setImmediate(res); });
+  }
   finish();
+  if (PUSH) { try { await pushDocs(); } catch (e) { console.error(e.message); process.exitCode = 1; } }
 })();
 
 function finish() {

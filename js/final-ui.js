@@ -103,7 +103,8 @@
     $("fProgress").hidden = false; progress(0, "Starting");
     var stageW = { features: [0, 0.05], train: [0.05, 0.75], refit: [0.75, 0.98], done: [1, 1] };
     F.run(S.ds, st.cfg, function (stage, frac, text) { var w = stageW[stage] || [0, 1]; progress(w[0] + (w[1] - w[0]) * frac, text); })
-      .then(function (res) { S.res = res; showResults(res); progress(1, "Done. Scroll down for the results."); U.setStatus("Final training mode: trained and tested. " + res.verdict.text); })
+      .then(function (res) { S.res = res; showResults(res); progress(1, "Done. Scroll down for the results."); U.setStatus("Final training mode: trained and tested. " + res.verdict.text);
+        if (T.onFinalTrained) T.onFinalTrained(res, S.practice); })
       .catch(function (e) { showErr(e.message); progress(0, ""); $("fProgress").hidden = true; })
       .then(function () { S.busy = false; $("fTrain").disabled = false; $("fTrain").textContent = "Train the bot again"; });
   }

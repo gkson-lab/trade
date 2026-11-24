@@ -27,6 +27,7 @@
     S.newsSeen = 0; S.tradeSeen = {}; S.dirtyBots = true; S.heldCount = null;
     clear($("feedNews")); clear($("feedTrades"));
     S.sim.on(onSimEvent);
+    if (T.onSimBuilt) T.onSimBuilt(S.sim);
     S.sim.market.on(function (t, d) { if (t === "regime") setStatus("Regime change: " + d + " market."); });
     $("genTotal").textContent = S.sim.forever ? "∞" : cfg.generations;
     $("genDays").textContent = cfg.daysPerGen;
