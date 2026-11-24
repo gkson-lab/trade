@@ -17,33 +17,38 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="wordmark">Trade Box</span><span class="tag">Simulated market</span></div>
-  <div class="ticker" aria-label="SIM 500 index">
+  <div class="brand"><span class="wordmark">Trade Box</span><span class="tag" id="modeTag">Simulated market</span></div>
+  <button type="button" class="mode-switch" id="modeSwitch" role="switch" aria-checked="false" aria-describedby="modeSwitchHint">
+    <span class="track" aria-hidden="true"><span class="knob"></span></span>
+    <span class="mode-label">Final training mode</span>
+  </button>
+  <span class="sr-only" id="modeSwitchHint">Switches between the simulated market and training the trading bot on real price data you load.</span>
+  <div class="ticker sim-only" aria-label="SIM 500 index">
     <span class="ticker-name">SIM 500</span>
     <span id="idxVal" class="num strong">5,000.00</span>
     <span id="idxChg" class="num chg">0.00%</span>
   </div>
-  <div class="ticker" aria-label="SIM VIX volatility index"><span class="ticker-name keep">VIX</span><span id="vixVal" class="num">—</span></div>
-  <div class="regime"><span class="muted">Regime</span> <span id="regime" class="badge">Neutral</span></div>
-  <div class="clock"><span id="clockDate" class="num">2027-01-04</span> <span id="clockTime" class="num muted">9:30 AM</span></div>
-  <div class="genbox">
+  <div class="ticker sim-only" aria-label="SIM VIX volatility index"><span class="ticker-name keep">VIX</span><span id="vixVal" class="num">—</span></div>
+  <div class="regime sim-only"><span class="muted">Regime</span> <span id="regime" class="badge">Neutral</span></div>
+  <div class="clock sim-only"><span id="clockDate" class="num">2027-01-04</span> <span id="clockTime" class="num muted">9:30 AM</span></div>
+  <div class="genbox sim-only">
     <span class="muted">Gen</span> <span id="genNum" class="num strong">1</span><span class="muted">/</span><span id="genTotal" class="num">6</span>
     <span class="muted">Day</span> <span id="genDay" class="num">1</span><span class="muted">/</span><span id="genDays" class="num">10</span>
     <div class="progress" aria-hidden="true"><div id="genProgress"></div></div>
   </div>
   <div class="controls">
-    <button id="btnPlay" class="btn primary" type="button" aria-label="Start simulation">Start</button>
+    <button id="btnPlay" class="btn primary sim-only" type="button" aria-label="Start simulation">Start</button>
     <label class="sr-only" for="speed">Speed</label>
-    <select id="speed" class="select" aria-label="Speed">
+    <select id="speed" class="select sim-only" aria-label="Speed">
       <option value="1">1 bar/s</option>
       <option value="4">4 bars/s</option>
       <option value="15" selected>15 bars/s</option>
       <option value="60">60 bars/s</option>
       <option value="0">Max</option>
     </select>
-    <button id="btnFinish" class="btn" type="button">Finish</button>
-    <button id="btnData" class="btn" type="button">Data</button>
-    <button id="btnNew" class="btn" type="button">New run</button>
+    <button id="btnFinish" class="btn sim-only" type="button">Finish</button>
+    <button id="btnData" class="btn sim-only" type="button">Data</button>
+    <button id="btnNew" class="btn sim-only" type="button">New run</button>
     <button id="btnTheme" class="btn icon" type="button" aria-label="Toggle light or dark theme">
       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
     </button>
@@ -54,6 +59,13 @@
   <span id="updateText"></span>
   <button type="button" class="btn primary" id="btnUpdate">Reload</button>
   <button type="button" class="btn" id="btnUpdateLater">Later</button>
+</div>
+
+<div class="final-banner" id="finalBanner" role="status" hidden>
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" d="M12 3 2 20h20L12 3Zm0 6v5m0 3v.5"/></svg>
+  <p><strong>You are in final training mode.</strong> The bot learns from the real price data you load here, not from the simulated market.
+  Its results are estimates from past prices, not investment advice, and it never places orders.</p>
+  <button type="button" class="btn" id="btnLeaveFinal">Back to the simulation</button>
 </div>
 
 <main class="layout" id="layout">
@@ -141,6 +153,134 @@
     <div class="list-head bots-head"><span>Bot</span><span>Equity</span><span>P/L</span></div>
     <ol id="botList" class="bot-list"></ol>
   </section>
+</main>
+
+<main class="final" id="finalView" hidden aria-labelledby="finalTitle">
+  <div class="final-inner">
+    <header class="final-head">
+      <h1 id="finalTitle">Final training</h1>
+      <p>Load daily prices, train the bot, check how it did on dates it never saw, then read its chances for each stock's next move.</p>
+    </header>
+
+    <section class="step" aria-labelledby="hData">
+      <h2 id="hData"><span class="step-n">1</span>Price data in</h2>
+      <p class="hint">One CSV per symbol (a Yahoo Finance download works: Date, Open, High, Low, Close, Adj Close, Volume), or one CSV with a symbol column.
+        A .zip of CSVs works too. Several years of daily prices for 20 or more symbols give the bot something to learn from.</p>
+      <label class="drop" id="fDrop" for="fFiles">
+        <span class="drop-title">Choose price files</span>
+        <span class="hint">or drop them here · .csv, .txt or .zip</span>
+        <input id="fFiles" type="file" accept=".csv,.txt,.zip,text/csv,application/zip" multiple>
+      </label>
+      <div class="row-actions">
+        <button type="button" class="btn" id="fSample">Try it with simulated prices</button>
+        <span class="hint">Builds 40 symbols and about 2 years of daily prices from the simulator, clearly marked as practice data.</span>
+      </div>
+      <div id="fDataSummary" class="data-summary" hidden></div>
+      <div class="field narrow" id="fBenchField" hidden>
+        <label class="label" for="fBench">Market to compare against</label>
+        <select class="select full" id="fBench"></select>
+        <span class="hint">Pick an index fund you loaded (SPY, QQQ ...) or let the bot average all your symbols.</span>
+      </div>
+    </section>
+
+    <section class="step" aria-labelledby="hSet">
+      <h2 id="hSet"><span class="step-n">2</span>Settings</h2>
+      <div class="set-grid">
+        <div class="field"><label class="label" for="fHorizon">Holding period</label>
+          <select class="select full" id="fHorizon"><option value="1">1 trading day</option><option value="3">3 trading days</option><option value="5" selected>5 trading days (a week)</option>
+            <option value="10">10 trading days</option><option value="20">20 trading days (a month)</option></select></div>
+        <div class="field"><label class="label" for="fThreshold">Big move (%)</label>
+          <input class="input" id="fThreshold" type="number" min="0.1" max="50" step="0.1" value="2" inputmode="decimal">
+          <span class="hint">Also estimates the chance of rising or falling by more than this.</span></div>
+        <div class="field"><label class="label" for="fModel">Model</label>
+          <select class="select full" id="fModel"><option value="gbm">Boosted decision trees</option><option value="logistic">Logistic regression (simple)</option></select></div>
+        <div class="field"><label class="label" for="fAmount">Amount per trade ($)</label>
+          <input class="input" id="fAmount" type="number" min="1" step="any" value="10000" inputmode="decimal">
+          <span class="hint">Turns percentages into dollar profit and loss.</span></div>
+        <div class="field"><label class="label" for="fBuyAt">Buy when chance of rising is at least (%)</label>
+          <input class="input" id="fBuyAt" type="number" min="50" max="95" step="1" value="55" inputmode="decimal"></div>
+        <div class="field"><label class="label" for="fTopK">Backtest: stocks bought each period</label>
+          <input class="input" id="fTopK" type="number" min="1" max="100" step="1" value="5"></div>
+        <div class="field"><label class="label" for="fCost">Trading cost per side (basis points)</label>
+          <input class="input" id="fCost" type="number" min="0" max="200" step="1" value="10"></div>
+        <div class="field"><label class="label" for="fStop">Stop loss (%)</label>
+          <input class="input" id="fStop" type="number" min="0.5" max="90" step="0.5" value="8" inputmode="decimal"></div>
+        <div class="field"><label class="label" for="fTarget">Take profit (%)</label>
+          <input class="input" id="fTarget" type="number" min="0.5" max="500" step="0.5" value="15" inputmode="decimal"></div>
+      </div>
+      <div class="checks">
+        <label class="check"><input type="checkbox" id="fStops" checked> Use the stop loss and take profit in the backtest</label>
+        <label class="check"><input type="checkbox" id="fShort"> Allow short selling</label>
+        <label class="check"><input type="checkbox" id="fRefit" checked> After testing, retrain on all the data for the final predictions</label>
+      </div>
+      <div class="row-actions">
+        <button type="button" class="btn" id="fFromBot">Use the best simulated bot's risk rules</button>
+        <span class="hint" id="fFromBotHint">Copies stop loss, take profit and number of positions from the top bot of your current simulation run.</span>
+      </div>
+    </section>
+
+    <section class="step" aria-labelledby="hTrain">
+      <h2 id="hTrain"><span class="step-n">3</span>Train and test</h2>
+      <p class="hint">The bot trains on the oldest 70% of dates, tunes on the next 15%, and is scored on the newest 15%, which it never sees while learning.
+        Every trade enters at the next day's open, so nothing uses information it couldn't have had.</p>
+      <div class="row-actions">
+        <button type="button" class="btn primary big" id="fTrain" disabled>Train the bot</button>
+        <span class="hint" id="fTrainHint">Load price data first.</span>
+      </div>
+      <div class="train-progress" id="fProgress" hidden>
+        <div class="bar" aria-hidden="true"><div id="fProgressBar"></div></div>
+        <span id="fProgressText" role="status"></span>
+      </div>
+      <p class="err" id="fErr" role="alert" hidden></p>
+    </section>
+
+    <section class="step" id="fResults" aria-labelledby="hRes" hidden>
+      <h2 id="hRes"><span class="step-n">4</span>How it did on dates it never saw</h2>
+      <div class="verdict" id="fVerdict"></div>
+      <div class="kpis" id="fKpis"></div>
+      <h3>Backtest on the test dates</h3>
+      <p class="hint" id="fBtHint"></p>
+      <canvas class="equity-chart" id="fEquity" role="img"></canvas>
+      <div class="two-col">
+        <div><h3>Are its chances honest?</h3><p class="hint">The bot's raw score against how often stocks really rose on test dates. The chances in step 5 are already corrected with checks like this, so they match what actually happened.</p><div id="fCal"></div></div>
+        <div><h3>What it pays attention to</h3><div id="fImp"></div></div>
+      </div>
+      <h3>Outcomes by confidence</h3>
+      <p class="hint">Test-date predictions split into ten groups from least to most confident. The returns are what actually happened over the holding period.</p>
+      <div id="fRanges"></div>
+    </section>
+
+    <section class="step" id="fPredSec" aria-labelledby="hPred" hidden>
+      <h2 id="hPred"><span class="step-n">5</span>Predictions and chances of profit or loss</h2>
+      <div class="verdict" id="fPredWarn" hidden></div>
+      <p class="hint" id="fPredHint"></p>
+      <div class="row-actions">
+        <label class="label" for="fSignalFilter">Show</label>
+        <select class="select" id="fSignalFilter"><option value="">All symbols</option><option value="Buy">Buy</option><option value="Hold">Hold</option><option value="Avoid">Avoid</option><option value="Short">Short</option></select>
+      </div>
+      <div id="fPreds"></div>
+    </section>
+
+    <section class="step" aria-labelledby="hOut">
+      <h2 id="hOut"><span class="step-n">6</span>Results out, model in</h2>
+      <div class="export-grid">
+        <div class="export"><b>Full results</b><span class="hint">Summary, predictions, calibration, outcome ranges, backtest, every trade, feature importance, every test prediction, data quality.</span>
+          <button type="button" class="btn primary" id="fOutXlsx" disabled>Download .xlsx</button></div>
+        <div class="export"><b>Predictions</b><span class="hint">Chances, expected return, likely range and dollar P/L for every symbol.</span>
+          <button type="button" class="btn" id="fOutCsv" disabled>Download .csv</button></div>
+        <div class="export"><b>Trained model</b><span class="hint">Save the bot and load it later to predict on new prices without retraining.</span>
+          <button type="button" class="btn" id="fOutModel" disabled>Download .json</button></div>
+        <div class="export"><b>Training table</b><span class="hint">Every symbol-day with the bot's 26 inputs (x_) and outcomes (y_), for training your own models.</span>
+          <button type="button" class="btn" id="fOutTrain" disabled>Download .csv</button></div>
+        <div class="export wide"><b>Load a saved model</b>
+          <span class="hint">Predicts on the price data loaded in step 1. If that data runs past the model's training dates, it also scores the model on the new dates.</span>
+          <label class="label" for="fModelFile">Model file (.json)</label>
+          <input id="fModelFile" class="input file" type="file" accept=".json,application/json">
+          <button type="button" class="btn" id="fUseModel">Predict with this model</button>
+          <p class="err" id="fModelErr" role="alert" hidden></p></div>
+      </div>
+    </section>
+  </div>
 </main>
 
 <nav class="mobile-tabs" aria-label="Panels">
@@ -294,7 +434,9 @@
 <script src="js/sim.js"></script>
 <script src="js/report.js"></script>
 <script src="js/charts.js"></script>
+<script src="js/final.js"></script>
 <script src="js/app.js"></script>
+<script src="js/final-ui.js"></script>
 <script src="js/updates.js"></script>
 <script src="vendor/xlsx.full.min.js" defer></script>
 </body>

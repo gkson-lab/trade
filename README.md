@@ -17,7 +17,47 @@ The market is fictional. The 6,138 symbols are real NASDAQ, NYSE and AMEX listin
 | Endless | Browser: **New run → Run forever**, then **Finish** when you want to stop. CLI: `node cli.js --forever` (Ctrl+C finishes the current generation and saves everything; `--max-gens N` and `--max-minutes M` also work) |
 | Combine CSVs | `node tools/combine.js out/run-20270104-x1` or `node tools/combine.js a.zip b/*.csv --out merged.xlsx`. In the browser: **Data → Combine CSVs into one spreadsheet** |
 | Update checker | Built into the page: checks GitHub every 5-10 minutes and shows a **Reload** bar when a new commit lands on `main`. For a local clone: `node tools/check-updates.js` (add `--pull` to fast-forward automatically, `--branch` to pick a branch, `--once` for a single check) |
-| Tests | `node tests/run.js` |
+| Tests | `node tests/run.js` and `node tests/final.js` |
+
+## Final training mode: the trading bot
+
+Flip the **Final training mode** switch in the top bar. The simulation pauses, the bar turns amber, and a banner stays on screen while you're in this mode. It says the bot is learning from *your* data, that results are estimates and not investment advice, and that nothing places orders. **Back to the simulation** (or the switch) leaves the mode.
+
+1. **Price data in.** Load daily prices: one CSV per symbol (a Yahoo Finance download works, and adjusted prices are used when present), one CSV with a symbol column, or a .zip of CSVs. Bad rows, short histories and likely unadjusted splits are reported. Pick an index fund you loaded (SPY, QQQ ...) as the market, or let the bot average your symbols. **Try it with simulated prices** loads practice data, marked as such everywhere.
+2. **Settings.** Holding period (1 to 20 days), big-move size, model (boosted decision trees or logistic regression), dollars per trade, buy level, trading cost, stop loss and take profit, shorting. **Use the best simulated bot's risk rules** copies the stop, target and position count from the top bot of your simulation run.
+3. **Train and test.** 26 inputs from prices and volume only, each using data up to that day's close: momentum, volatility, RSI, ATR, moving averages, volume surge, gaps, 1-year range, market trend and volatility, beta, cross-stock ranks. Every trade enters at the *next* open.
+   - The bot trains on the oldest 70% of dates, tunes on the next 15%, and is scored on the newest 15%, with gaps so no label overlaps the next period.
+   - It then retrains on all the data for the final predictions.
+4. **How it did on dates it never saw.** A plain verdict (skill / weak / none, including "it's only timing the whole market"), AUC, daily rank correlation, top-minus-bottom spread, and a backtest with costs and stops against buying everything equally. It also shows whether its chances are honest (calibration), what it pays attention to, and outcomes by confidence group.
+5. **Predictions and chances of profit or loss.** For every symbol's latest day:
+   - **Calibrated chances:** of rising, of rising more than the big-move size, and of falling more than it. These come from how often that really happened on held-out dates for similar scores.
+   - **Expected return and likely range:** the 10th to 90th percentile of past outcomes.
+   - **Dollar figures:** expected profit or loss and its range for your trade size.
+   - **Decision:** a confidence level, a capped quarter-Kelly size, and Buy / Hold / Avoid / Short.
+
+   A warning sits above the signals whenever the test found weak or no skill.
+6. **Results out, model in.**
+   - **Full results .xlsx**, with 9 sheets: summary, predictions, calibration, outcome ranges, backtest, trades, feature importance, test predictions, data quality.
+   - **Predictions .csv.**
+   - **Trained model .json:** load it later to predict on new prices without retraining. If the new prices run past its training dates, it's also scored on them.
+   - **Training table .csv:** `x_` inputs and `y_` outcomes.
+
+From the command line, the same engine runs:
+
+```bash
+node tools/final_train.js --data prices/ --benchmark SPY --horizon 5 --out final
+node tools/final_train.js --data new-prices/ --model final/model.json --out final
+node tools/final_train.js --sample            # practice data
+```
+
+`node tests/final.js` checks the engine:
+
+- **Planted signal:** synthetic stocks with real persistent momentum must be found on unseen dates.
+- **Pure noise:** a random walk must not earn a "skill" verdict.
+- **No look-ahead:** changing every later price must leave earlier inputs untouched.
+- **Saved model:** must reload and give identical predictions.
+
+Most models trained on prices alone land close to chance. The screen says so when that happens, so treat any signal as something to paper-trade first.
 
 ## The bots
 
@@ -245,6 +285,8 @@ js/updates.js                GitHub update checker (in the page)
 cli.js                       headless runner (endless mode, writes each generation to disk)
 tools/combine.js             merge generation CSVs / ZIPs into one workbook
 tools/check-updates.js       update checker for a local clone
+js/final.js, js/final-ui.js   final training mode: the trading bot for real price data
+tools/final_train.js         final training mode from the command line
 tools/train_model.py         train one model on any number of runs (pandas + scikit-learn)
 .github/workflows/simulate.yml   run the box on GitHub's free runners, save data as a release
 .github/workflows/train.yml      train one model on every saved run
