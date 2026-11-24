@@ -83,6 +83,7 @@ function mockGitHub(opts) {
   assert.ok(/rejected the token/.test(D.explain({ status: 401, message: "x" }, "o/r")));
   assert.ok(/can't write to o\/r/.test(D.explain({ status: 404, message: "x" }, "o/r")));
   assert.ok(/can't reach GitHub/.test(D.explain(new TypeError("Failed to fetch"), "o/r")));
+  assert.ok(/network proxy/.test(D.explain({ status: 403, message: "Write access to this GitHub API path is not permitted through this proxy." }, "o/r")), "proxy blocks are not blamed on the token");
   await assert.rejects(D.push(D.simBundle(sim), { repo: "o/r", request: mockGitHub({ fail: 401 }).api, zlib: zlib }), /Bad credentials/);
   console.log("ok  errors explained: bad token, no access, GitHub unreachable");
 })().catch(function (e) { console.error(e); process.exit(1); });

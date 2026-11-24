@@ -167,6 +167,7 @@
   }
 
   function explain(e, repo) {
+    if (/proxy/i.test(e.message || "")) return "A network proxy between this device and GitHub blocked the upload (" + e.message.replace(/\.$/, "") + "). Send from a network without that proxy, or use the bundle download and GitHub's upload page.";
     if (e.status === 401) return "GitHub rejected the token. Check it was copied in full and hasn't expired.";
     if (e.status === 403 || e.status === 404) return "The token can't write to " + repo + ". Give it access to that repository with Contents and Pull requests set to Read and write. The gk-research-group organization may also need to approve fine-grained tokens.";
     if (e.status === 422) return "GitHub refused the change: " + e.message + ".";
