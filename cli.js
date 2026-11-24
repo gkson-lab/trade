@@ -12,7 +12,7 @@
  *       --lean = --gzip plus 50 training samples a day instead of 150, --samples N sets that directly.
  * Trading data bot: --push-docs opens a pull request with the run's data in gk-research-group/internal-documents-
  *   (--docs-repo to change), updated every --docs-every generations in endless runs (default 25) and at the end.
- *   Uses DOCS_TOKEN / GH_TOKEN / GITHUB_TOKEN, or the GitHub CLI login.
+ *   Uses DOCS_TOKEN / GH_TOKEN / GITHUB_TOKEN, or the GitHub CLI login. --docs-git <local clone> commits and pushes with git instead.
  * Memory: --budget <cells kept in memory, ~50 bytes each; default 6,000,000>, --history <generations of per-bot history
  *   kept in memory, default 300>. The gen folders on disk always hold everything, including births.csv (every bot born). */
 "use strict";
@@ -23,7 +23,7 @@ process.argv.slice(2).forEach(function (a, i, arr) { if (a.indexOf("--") === 0) 
 if (args.help) {
   console.log("usage: node cli.js [--mult 1] [--gens 6 | --forever] [--days 10] [--cash 100000] [--breeding PRESET | --pool P --pairing Q --brackets B ...] [--list-breeding] [--mutation 1] [--samples 150] [--seed N] [--fitness return|risk] [--symbols N]\n" +
     "                   [--max-gens N] [--max-minutes M] [--budget CELLS] [--history GENS] [--out out] [--gzip] [--lean] [--xlsx] [--bot-folders]\n" +
-    "                   [--push-docs] [--docs-repo owner/repo] [--docs-every N] [--docs-link URL]");
+    "                   [--push-docs] [--docs-repo owner/repo] [--docs-every N] [--docs-link URL] [--docs-git CLONE]");
   process.exit(0);
 }
 
@@ -98,7 +98,7 @@ process.on("SIGINT", function () {
 var PUSH = !!args["push-docs"], DOCS_EVERY = args["docs-every"] !== undefined ? +args["docs-every"] : (sim.forever ? 25 : 0);
 var docsState = null, pushDue = false;
 async function pushDocs() {
-  var r = await require("./tools/docs_node.js").send(T.DocsPush.simBundle(sim), { repo: args["docs-repo"], base: args["docs-base"], state: docsState, link: args["docs-link"] });
+  var r = await require("./tools/docs_node.js").send(T.DocsPush.simBundle(sim), { repo: args["docs-repo"], base: args["docs-base"], state: docsState, link: args["docs-link"], git: args["docs-git"] });
   docsState = { branch: r.branch, pr: r.pr };
   console.log("  Trading data bot: " + (r.updated ? "updated " : "opened ") + r.url + " (" + r.files + " files, " + (r.bytes / 1048576).toFixed(1) + " MB" +
     (r.omitted.length ? ", " + r.omitted.length + " big table(s) left out for size" : "") + ")");

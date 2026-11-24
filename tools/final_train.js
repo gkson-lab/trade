@@ -93,7 +93,7 @@ F.run(ds, cfg, function (stage, frac, text) { if (text !== lastMsg && (stage !==
     fs.writeFileSync(path.join(out, "model.json"), JSON.stringify(res.model));
     if (args["save-training"]) fs.writeFileSync(path.join(out, "training-data.csv.gz"), zlib.gzipSync(T.Report.toCSV(F.trainingRows(res.features))));
     console.log("Wrote results.xlsx, predictions.csv, backtest.csv, trades.csv, model.json" + (args["save-training"] ? ", training-data.csv.gz" : "") + " to " + out + " in " + ((Date.now() - t0) / 1000).toFixed(1) + "s.");
-    if (args["push-docs"]) return require("./docs_node.js").send(T.DocsPush.finalBundle(res, !!args.sample), { repo: args["docs-repo"], base: args["docs-base"] })
+    if (args["push-docs"]) return require("./docs_node.js").send(T.DocsPush.finalBundle(res, !!args.sample), { repo: args["docs-repo"], base: args["docs-base"], git: args["docs-git"] })
       .then(function (r) { console.log("  Trading data bot: opened " + r.url + " (" + r.files + " files)"); });
   })
   .catch(function (e) { process.stdout.write("\n"); console.error(e.message); process.exit(1); });

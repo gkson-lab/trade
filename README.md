@@ -69,7 +69,7 @@ Everything the bots collect can go straight to **gk-research-group/internal-docu
 | From | How |
 |---|---|
 | The app | The **Trading data bot** button in the top bar. Choose this simulation run or the latest final training and press **Open pull request**. Tick **Send automatically** to open a pull request whenever a run or a training finishes; endless runs update their pull request every 25 generations. |
-| Command line | `node cli.js --push-docs` (endless runs update the pull request every `--docs-every` generations) and `node tools/final_train.js --push-docs`. Uses `DOCS_TOKEN`, `GH_TOKEN` or `GITHUB_TOKEN`, or your `gh auth login`. |
+| Command line | `node cli.js --push-docs` (endless runs update the pull request every `--docs-every` generations) and `node tools/final_train.js --push-docs`. Uses `DOCS_TOKEN`, `GH_TOKEN` or `GITHUB_TOKEN`, or your `gh auth login`. With `--docs-git <local clone>` it writes into a clone, commits, `git push`es and opens the pull request with `gh` instead (no API token needed). |
 | Cloud | The **Simulate** workflow sends each run when the repository secret `DOCS_TOKEN` is set. The pull request links the full archive in the run's release. |
 
 **What a simulation run sends:**
