@@ -17,7 +17,28 @@ The market is fictional. The 6,138 symbols are real NASDAQ, NYSE and AMEX listin
 | Endless | Browser: **New run → Run forever**, then **Finish** when you want to stop. CLI: `node cli.js --forever` (Ctrl+C finishes the current generation and saves everything; `--max-gens N` and `--max-minutes M` also work) |
 | Combine CSVs | `node tools/combine.js out/run-20270104-x1` or `node tools/combine.js a.zip b/*.csv --out merged.xlsx`. In the browser: **Data → Combine CSVs into one spreadsheet** |
 | Update checker | Built into the page: checks GitHub every 5-10 minutes and shows a **Reload** bar when a new commit lands on `main`. For a local clone: `node tools/check-updates.js` (add `--pull` to fast-forward automatically, `--branch` to pick a branch, `--once` for a single check) |
+| Mac / many cores | `node tools/parallel.js --runs 8 --gens 50 --gzip` runs one simulation per core, each with its own seed (Apple silicon: 8-16 at once). Any `cli.js` option works. |
+| Speed check | `node tools/bench.js` prints trading days per second for 20, 80 and 320 bots (`--symbols 1500` for a smaller market) |
 | Tests | `node tests/run.js`, `node tests/final.js` and `node tests/docs.js` |
+
+### Speed and weaker machines
+
+The engine shares one feature table per bar between all bots, caches each bot's weights, uses a fast tanh and table-based random numbers for wicks and volume, and allocates nothing per stock per bar. On the same machine it is now 2-4x faster than before:
+
+| Bots | Before | Now |
+|---|---|---|
+| 20 | 2.3 trading days/s | 4.3 days/s |
+| 80 | 1.2 | 3.7 |
+| 320 | 0.4 | 1.7 |
+
+To fit more bots on a slow laptop or a phone, pick a smaller **Market size** in **New run** (3,000 / 1,500 / 500 symbols; the biggest companies are kept), or `--symbols 1500` on the command line. Drawing is throttled (the chart redraws only when a bar changes, sparklines only for bots on screen), and the run keeps going in a background tab with drawing paused (**New run → Keep running when this tab is in the background**).
+
+### On a Mac
+
+- **Install it like an app:** in Safari choose **File → Add to Dock** (Chrome: the install icon in the address bar). It opens in its own window with a Mac icon and works offline.
+- **Trackpad:** pinch or scroll on the chart to zoom, two-finger swipe sideways or drag to pan, double-click to jump back to the latest bar.
+- **Keyboard:** **⌘K** opens the command palette (actions, symbols and bots by name). Single keys: **Space** start/pause, **1-5** speed, **N** new run, **F** finish, **D** data, **B** Trading data bot, **M** final training mode, **C** chart type, **+ / −** zoom, **← →** pan, **↑ ↓** next symbol, **/** search, **T** theme, **?** all shortcuts.
+- **Light and dark** follow the system setting; the theme button pins one (double-click it to follow the system again). Retina screens get sharp charts.
 
 ## Final training mode: the trading bot
 
@@ -68,8 +89,8 @@ Everything the bots collect can go straight to **gk-research-group/internal-docu
 
 | From | How |
 |---|---|
-| The app | The **Trading data bot** button in the top bar. Choose this simulation run or the latest final training and press **Open pull request**. Tick **Send automatically** to open a pull request whenever a run or a training finishes; endless runs update their pull request every 25 generations. |
-| Command line | `node cli.js --push-docs` (endless runs update the pull request every `--docs-every` generations) and `node tools/final_train.js --push-docs`. Uses `DOCS_TOKEN`, `GH_TOKEN` or `GITHUB_TOKEN`, or your `gh auth login`. With `--docs-git <local clone>` it writes into a clone, commits, `git push`es and opens the pull request with `gh` instead (no API token needed). |
+| The app | The **Trading data bot** button in the top bar. Choose this simulation run or the latest final training and press **Open pull request**. **Send automatically** is on by default: once a token is saved, every finished run and training opens a pull request by itself; endless runs also send every 25 generations. |
+| Command line | Automatic whenever `DOCS_TOKEN` is set (`--no-push-docs` to skip one run), or `node cli.js --push-docs` (endless runs update the pull request every `--docs-every` generations) and `node tools/final_train.js --push-docs`. Uses `DOCS_TOKEN`, `GH_TOKEN` or `GITHUB_TOKEN`, or your `gh auth login`. With `--docs-git <local clone>` it writes into a clone, commits, `git push`es and opens the pull request with `gh` instead (no API token needed). |
 | Cloud | The **Simulate** workflow sends each run when the repository secret `DOCS_TOKEN` is set. The pull request links the full archive in the run's release. |
 
 **What a simulation run sends:**
@@ -84,6 +105,15 @@ Everything the bots collect can go straight to **gk-research-group/internal-docu
 - the trained model and the training table
 
 Big tables are gzipped CSV. Anything past 90 MB is left out and listed in the folder README.
+
+**The bot on GitHub merges them for you.** The internal documents repo has a *Trading data bot* workflow (`.github/workflows/trading-data-bot.yml` there):
+
+- It squash-merges every data pull request **opened by gkson-lab** from a `trading-data-bot/...` branch, after checking that it only adds files under `shelf-12-trading-data/`, contains nothing that looks like a token or key, and every folder README has the confidential header and a `GKL-12` ID.
+- **Anyone else is denied:** their pull request is commented on, closed and its branch deleted. Forks are denied too.
+- Label a pull request `hold` to stop it merging. The workflow never runs code from a pull request.
+- Once a run's pull request has been merged, the next send from that run opens a new one.
+
+The **Simulate** and **Train** workflows in this repo run only for gkson-lab; anyone else who starts them is skipped before any step runs.
 
 **The token:** a fine-grained personal access token.
 
@@ -204,10 +234,11 @@ Every 5-minute bar, for every symbol:
 The layout is Kraken-style:
 
 - **Markets list** (left): search, S&P / gainers / losers / held filters and a sector filter.
-- **Chart** (centre): candlestick chart (5m or 1D) with volume, a 20-bar SMA and a crosshair.
+- **Chart** (centre): candles, line or area (5m or 1D) with volume, SMA 20 / SMA 50 / Bollinger bands / VWAP toggles, zoom and pan, a crosshair with OHLC, and the bots' buys and sells on that symbol as green and red markers (hover one to see which bots traded).
 - **Live charts**: six mini charts showing the names the bots hold most, then the biggest movers.
 - **News**, **bot trades** and **sector heatmap** tabs under the chart.
-- **Bot board** (right): each bot's equity sparkline and live P/L. Click a bot to see its genes, positions and trades.
+- **Bot board** (right): each bot's equity sparkline and live P/L. Rows slide when the ranking changes, with an arrow for bots moving up or down. Click a bot for its equity curve against the index, trait chips, a family-tree diagram (click a relative to open it), genes, positions and trades.
+- **Generation card**: when a generation ends, a card shows the podium, the average against SIM 500 and the next generation's size.
 
 On phones, a bottom tab bar switches between panels.
 
@@ -323,6 +354,8 @@ js/final.js, js/final-ui.js   final training mode: the trading bot for real pric
 js/docs-push.js, js/docs-ui.js Trading data bot: pull requests to the internal documents repo
 tools/docs_node.js           Trading data bot from Node (token or gh login)
 tools/final_train.js         final training mode from the command line
+tools/parallel.js            several runs at once, one per processor core
+tools/bench.js               speed check
 tools/train_model.py         train one model on any number of runs (pandas + scikit-learn)
 .github/workflows/simulate.yml   run the box on GitHub's free runners, save data as a release
 .github/workflows/train.yml      train one model on every saved run
