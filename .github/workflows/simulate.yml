@@ -44,6 +44,8 @@ permissions:
 
 jobs:
   simulate:
+    # only the owner's runs: anyone else who triggers this is refused before anything runs
+    if: github.actor == 'gkson-lab' && github.triggering_actor == 'gkson-lab'
     runs-on: ubuntu-latest
     timeout-minutes: 350
     steps:
@@ -64,7 +66,7 @@ jobs:
           SEED: ${{ inputs.seed || github.run_number }}
         run: |
           if [ "$GENS" = "0" ]; then G="--forever"; else G="--gens $GENS"; fi
-          PUSH=""
+          PUSH="--no-push-docs"
           if [ "$SEND_DOCS" = "true" ]; then
             if [ -n "$DOCS_TOKEN" ]; then PUSH="--push-docs --docs-link https://github.com/${{ github.repository }}/releases/tag/run-${{ github.run_number }}"
             else echo "::notice::Trading data bot skipped: add a DOCS_TOKEN secret (fine-grained token for gk-research-group/internal-documents-, Contents and Pull requests read/write)."; fi

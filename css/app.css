@@ -499,3 +499,10 @@ body { -moz-osx-font-smoothing: grayscale; }
 }
 @media (prefers-reduced-motion: reduce) { .gen-toast { transition: none; } }
 @media (max-width: 1460px) and (min-width: 1367px) { .topbar { gap: 9px; } .controls { gap: 5px; } .btn { padding: 0 10px; } }
+@media (max-width: 900px) {
+  .chart-tools { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 8px; }
+  .chart-tools::-webkit-scrollbar { display: none; }
+  .chart-tools .seg, .toggles { flex: none; flex-wrap: nowrap; }
+  .zoom { display: none; }   /* pinch and drag on the chart instead */
+  .tog { height: 28px; }
+}

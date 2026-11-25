@@ -10,7 +10,7 @@
  *   --bot-folders   bots/<name>/*.csv, the same rows split per bot
  * Size: --gzip writes .csv.gz (about 3x smaller; pandas and tools/combine.js read it directly),
  *       --lean = --gzip plus 50 training samples a day instead of 150, --samples N sets that directly.
- * Trading data bot: --push-docs opens a pull request with the run's data in gk-research-group/internal-documents-
+ * Trading data bot: --push-docs (automatic when DOCS_TOKEN is set; --no-push-docs to skip) opens a pull request with the run's data in gk-research-group/internal-documents-
  *   (--docs-repo to change), updated every --docs-every generations in endless runs (default 25) and at the end.
  *   Uses DOCS_TOKEN / GH_TOKEN / GITHUB_TOKEN, or the GitHub CLI login. --docs-git <local clone> commits and pushes with git instead.
  * Memory: --budget <cells kept in memory, ~50 bytes each; default 6,000,000>, --history <generations of per-bot history
@@ -95,7 +95,8 @@ process.on("SIGINT", function () {
 // run in slices so Ctrl+C can be handled
 // Trading data bot: --push-docs sends the run to the internal documents repo as a pull request (updated every
 // --docs-every generations during long runs, and once more at the end)
-var PUSH = !!args["push-docs"], DOCS_EVERY = args["docs-every"] !== undefined ? +args["docs-every"] : (sim.forever ? 25 : 0);
+// With a DOCS_TOKEN in the environment every run sends its data automatically; --no-push-docs turns that off
+var PUSH = !args["no-push-docs"] && (!!args["push-docs"] || !!process.env.DOCS_TOKEN), DOCS_EVERY = args["docs-every"] !== undefined ? +args["docs-every"] : (sim.forever ? 25 : 0);
 var docsState = null, pushDue = false;
 async function pushDocs() {
   var r = await require("./tools/docs_node.js").send(T.DocsPush.simBundle(sim), { repo: args["docs-repo"], base: args["docs-base"], state: docsState, link: args["docs-link"], git: args["docs-git"] });

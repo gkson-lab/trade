@@ -2,10 +2,21 @@
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
+<script>/* pick the theme before first paint: saved choice, else the system's light/dark setting */
+try { var tbT = localStorage.getItem("tb-theme"); document.documentElement.dataset.theme = tbT === "light" || tbT === "dark" ? tbT : (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"); } catch (e) {}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Trade Box</title>
 <meta name="description" content="Evolving AI trading bots on a simulated US stock market.">
-<meta name="theme-color" content="#0f1419">
+<meta name="theme-color" content="#161b21">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#161b21">
+<meta name="color-scheme" content="dark light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Trade Box">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAAIj0lEQVR4AeydzY8URRjGq3pxSZYsy4fogolfCZwMRhMNhgskePArUS/GE3r3IPgPcOSkxvgPcOJgAiZqjNEED5oYPaBeTNRIQDQgEpB1QVigfXtrZtiZruqdmq6ueqvqmbzbO1PV9db7Ps+P7tmFXYq5u7c6jPWb57XhcAukIgVGRB6M0BOHUYjWj7J6iOpQlpRM6h40jnCowIjGlJlG6KhcUEd62TJawdErQgpZhVSPlgVh+cQKKP3VUcjqjyt9TJyNFraCQ9VBYFAiBCsFyBRyR0jZpqpWcLTZGGv5K2ABh7qJ0JF/V6iwrgAZV4Wo3hfWZ7UjFnDI/kObCIPMFei5JyxuNBZwMG/eY3m5bAU4cnF6gj4BxwSi5bKkEY7lb2rlokSefTZa3AiHtHjzkqe20XfdaHEjHNG3jgZaKQA4WsmX9mLAkba/rbqrwdH4DmWVrTAdtQI162twNL5Dibp3FL+KAjXrh+Cg772vsh7TSSswAsAQHFLia9ekzV+tOSmHALgDR+2Os1omzKeowEoMenDQ9WQYmhT7Rk9jKEAYEAzqxB4c6gWOUGClAj04pBy62aw8A8+7VYBfdil7MFRwDC4j/OpERWEUUEhUcITZH7uyV6CCQ8reZYR9tSjQqwKFuoB43RObsVdASklf01ZXDvalosAgCpSFzb9GDlJit5vuWD977Om92qCpbvdmn72w+TkG9t3YFzg7Pb17/l5t0JR9vqRWFGy7QWHBFQAcwS3gWwDg4OtN8MoAR3AL+BZQ0Fe0fKtDZeEUIDBw5QgnP/udAQd7i8IVCDjCad/Bzm5TAg63eiaVjREcM0/t2PTannrMvfhkUpLH0wwjONbt2r55/556zL0EOMIAxQiOMAJgV7MCgMOsTfYzgCN7BMwCAA6zNtnPZAIHO5/vP/LG9hOH6rHlwHN8agUcfLxgVwngYGcJn4IABx8v2FUCONhZwqeg9OG4qyheefhBU+y7b2v1n5KUZf1IU6ZVNE5p+bjYUSXpwzEzNfXe7l2mOLjzESGlNmjKtIrGKW1HlvBJmz4cfLSOrRIBOKKzzF/BgMOf1tHtBDiis8xfwYDDn9bR7QQ4orPMX8GAw5/W0e0EOKKzzF/BgMNe62xWeIWjmJleMz9nCjkzrfkmtijFmsK0hMaLDTPZmOW7Ua9wzD77+ENHD5hibt+j2u9jr922ybSExu956wXfmmWzn1c4slE1kUYBRyJGdtEG4OhC1URyAo5EjOyiDcDRhaqJ5HQJRyKSoI2+AoCjrwQ+1xQAHDVJMNBXAHD0lcDnmgKAoyYJBvoKAI6+Eq4/bzn4/ANH3zTFXds2loL+3mg0ZvftNC2h8fXPPOa6zKZ8gKNJnTZzUxvXTc9vMEWxZkoKUY+pmbWmJTQu160VHh+Aw6PYuq04jwEOzu4Erg1wBDaA8/aAg7M7gWsDHIEN4Lw94ODsTuDaAEdgAzhvDzg4uxO4NrZwBNYF25MCgINEQOgVABx6XTBKCgAOEgGhVwBw6HXBKCkAOEgEhF4BwKHXBaOkAOAgEZIJx40ADseCppQOcKTkpuNeAIdjQVNKBzhSctNxL4DDsaAppQMcKbnpuBfA4VjQlNLlAUdKjnnsBXB4FDu2rQBHbI55rBdweBQ7tq0AR2yOeawXcHgUO7atAEdsjnmsF3B4FDuurYTf/wCwXLx+49xlU9y6el37+0xu37xlWkLjty4tNmt+uyzP/LtoivPXrpmW05RpFY1TWtPCZMa9XjmufHry9KvvmmLhix+l0Pw+k6U/L5mW0PiFtz8WjY+FmzefOP6RKV7/8ivTapoyraJxSmtamMy4VziSUS2TRgBHJkZP0ibgmES1TNYAjkyMnqRNwDGJapmsARzWRuezAHDk47V1p4DDWrJ8FgCOfLy27hRwWEuWzwLAkY/X1p0CDmvJ8lkAOPLx2rpTh3BY740FzBUAHMwNClke4AipPvO9AQdzg0KWBzhCqs98b8DB3KCQ5QGOkOoz3xtwhDWI9e6Aoyt7/jn27bnDx02xdHGh1D0WT/5mWkLjV7/7tatydXkBh04VF2PXTp5a+OwHU9xevC51j6XfL5qW0PjS6b9dlDZuDsAxrlIZngc4MjR93JYBx7hKZXge4MjQ9HFbBhzjKpXheVzhyNAKfi0DDn6esKkIcLCxgl8hgIOfJ2wqYgTH0tmLV78/VY//fjrbnVwLN258fe68Nmiqu32jyMwIjssffPPHgSP1+Ovwh91J+fOVhZc/P6ENmupu3ygyM4IjCr2yKhJwJGS361YAh2tFE8oHOBIy03UrgMO1ognlK8qyTKgdtOJMAQIDVw5naqaXCHCk56mzjgCHMynTS1RUv2w8vbaGO8KryRQoBN6PTqZcu1Vn9r//y95D9bjwziftErtcXbhMhlxpKVBIKdPqCN24UUBKWV056CtaN/mQJRUFFBIVHKl0hD4cK1DBQRcQx1mRLnIFFBIVHNSIuozQEwQUUDCQDj046BkCCowo0INDXUZG5vAyQwVKUQ5g6MGRoQpoWauAFHIwPgTH4GYzmMaTrBQYAWAIjsH1JCtF0OxAgREAhuCgk0bYoRFEJgrUrR+FY4SdTHRBm6RA3fpROOgkRKMCGU0CjozMtm3VCEf9DmSbGufHroARDroDgY/Y3V29/safPTDCofISHxTqOY4pKUC2VtHYUhMcdPFQ0ZgBk1EqoJylY0P1TXA0LMNUDgoAjhxcnrBHCziqW9Tyh34rjPJWYNm66jB+mRZw0P2JglJXOzS+y6VzEHwUGPhF9lGMX5gFHCopZVehXuLIXwHlFx1tS7WGY+UGAyRXDuI5EwXau9MKDoKRohSqDLrT4KfnAoNBXlRu0MfyP+gid9oU1AoOtbEUVMNyCNnHhD5TgXSsQp2Go1sFKmV7H3ekJi8qN+hDyPbb/Q8AAP//D6Q3GAAAAAZJREFUAwDvQ3eePWtY6wAAAABJRU5ErkJggg==">
 <meta name="update-repo" content="gkson-lab/trade">
 <meta name="update-branch" content="main">
 <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTIiIGZpbGw9IiMwZjE0MTkiLz48ZyBzdHJva2Utd2lkdGg9IjMiPjxwYXRoIGQ9Ik0xOCAxNHYzNiIgc3Ryb2tlPSIjMzRkMzk5Ii8+PHJlY3QgeD0iMTMiIHk9IjIyIiB3aWR0aD0iMTAiIGhlaWdodD0iMTYiIGZpbGw9IiMzNGQzOTkiLz48cGF0aCBkPSJNMzIgMTB2NDAiIHN0cm9rZT0iI2Y4NzE3MSIvPjxyZWN0IHg9IjI3IiB5PSIxOCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjIwIiBmaWxsPSIjZjg3MTcxIi8+PHBhdGggZD0iTTQ2IDE2djM4IiBzdHJva2U9IiMzNGQzOTkiLz48cmVjdCB4PSI0MSIgeT0iMjYiIHdpZHRoPSIxMCIgaGVpZ2h0PSIyMCIgZmlsbD0iIzM0ZDM5OSIvPjwvZz48L3N2Zz4K" type="image/svg+xml">
@@ -373,7 +384,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
 
 /* keep the top bar on one line on desktop */
 .topbar .btn, .mode-switch, .wordmark, .ticker, .regime, .clock, .genbox { white-space: nowrap; }
-@media (max-width: 1600px) and (min-width: 901px) {
+@media (max-width: 1840px) and (min-width: 901px) {
   .topbar { gap: 12px; }
   .controls { gap: 6px; }
   body:not(.final-mode) .tag, .regime > .muted, #clockDate { display: none; }
@@ -397,6 +408,129 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
+
+/* ---------- Chart tools ---------- */
+:root { --violet: #a78bfa; }
+:root[data-theme="light"] { --violet: #6d28d9; }
+.chart-tools { display: flex; align-items: center; gap: 10px; padding: 5px 12px; border-bottom: 1px solid var(--border); flex: none; flex-wrap: wrap; font-size: 12px; }
+.toggles { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.tog { height: 24px; padding: 0 8px; border-radius: var(--r-sm); border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-size: 11px; font-weight: 500;
+  transition: background-color 120ms, color 120ms, border-color 120ms; display: inline-flex; align-items: center; gap: 5px; }
+.tog::before { content: ""; width: 10px; height: 2px; border-radius: 1px; background: currentColor; opacity: .5; }
+.tog:hover { color: var(--text); border-color: var(--border-strong); }
+.tog[aria-pressed="true"] { color: var(--text); background: var(--elev2); border-color: var(--border-strong); }
+.tog.i-sma20[aria-pressed="true"]::before { background: var(--accent); opacity: 1; }
+.tog.i-sma50[aria-pressed="true"]::before { background: var(--warn); opacity: 1; }
+.tog.i-bb[aria-pressed="true"]::before { background: var(--accent); opacity: .5; height: 6px; }
+.tog.i-vwap[aria-pressed="true"]::before { background: var(--violet); opacity: 1; }
+.tog:disabled { opacity: .4; cursor: not-allowed; }
+.legend-trades { color: var(--muted); font-size: 11px; display: inline-flex; align-items: center; gap: 5px; }
+.tri { display: inline-block; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; margin-left: 4px; }
+.tri.up { border-bottom: 6px solid var(--up); }
+.tri.down { border-top: 6px solid var(--down); }
+.zoom { margin-left: auto; display: inline-flex; gap: 4px; }
+.btn.small { height: 24px; font-size: 12px; padding: 0 8px; }
+.btn.icon.small { width: 24px; padding: 0; font-size: 15px; line-height: 1; }
+.chart-wrap canvas { cursor: crosshair; }
+.chart-wrap canvas:active { cursor: grabbing; }
+
+/* Generation-end card over the chart */
+.gen-toast { position: fixed; right: 16px; bottom: calc(var(--status-h) + 16px); width: min(320px, calc(100vw - 32px)); background: var(--elev); border: 1px solid var(--border-strong); border-radius: var(--r-lg);
+  box-shadow: 0 12px 32px rgba(0,0,0,.35); padding: 10px 12px; display: grid; gap: 8px; font-size: 12px; z-index: 2;
+  opacity: 0; transform: translateY(10px) scale(.98); transition: opacity 200ms ease-out, transform 200ms ease-out; }
+.gen-toast.show { opacity: 1; transform: none; }
+.toast-head { display: flex; justify-content: space-between; align-items: center; }
+.toast-head b { color: var(--text); font: 600 14px/1.2 var(--display); }
+.podium { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.podium li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 4px 6px; border-radius: var(--r-sm); background: var(--card); }
+.podium .place { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font-weight: 600; font-size: 11px; background: var(--elev2); color: var(--text); }
+.podium .p1 .place { background: #f5c542; color: #1c1405; }
+.podium .p2 .place { background: #cbd5e1; color: #0f172a; }
+.podium .p3 .place { background: #d08b52; color: #1c1405; }
+.podium .who { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toast-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.toast-actions { display: flex; justify-content: flex-end; }
+
+/* Bot list: rank movement arrows */
+.bot-row .mv { font-size: 9px; flex: none; }
+.bot-row .nm { white-space: nowrap; min-width: 0; }
+.bot-row .nm > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.bot-list li { will-change: transform; }
+
+/* News slides in */
+@keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.news-item, .trade-item { animation: slideIn 220ms ease-out; }
+.mrow .p { border-radius: 3px; padding: 0 2px; }
+#idxVal { border-radius: 3px; padding: 0 2px; }
+
+/* Bot dialog: equity chart, trait chips, family tree */
+.eq-wrap { display: grid; gap: 4px; }
+.bot-equity { width: 100%; height: 170px; display: block; background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg); }
+.eq-legend { display: flex; gap: 6px; align-items: center; font-size: 11px; color: var(--muted); }
+.eq-legend .sw { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
+.eq-legend .sw.bot { background: var(--up); }
+.eq-legend .sw.idx { background: var(--muted); margin-left: 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--text); background: var(--card); cursor: default; }
+.chip.chr1 { border-color: rgba(45,212,191,.5); }
+.chip.chr2 { border-color: rgba(251,191,36,.5); }
+.chip.chr3 { border-color: rgba(167,139,250,.55); }
+.chip.chr4 { border-color: rgba(248,113,113,.5); }
+.tree-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--card); padding: 8px; }
+.tree { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+.tree .links path { fill: none; stroke: var(--border-strong); stroke-width: 1.5; }
+.tree .node rect { fill: var(--elev); stroke: var(--border-strong); }
+.tree .node.self rect { fill: var(--accent-weak); stroke: var(--accent); stroke-width: 1.5; }
+.tree .node.alive { cursor: pointer; }
+.tree .node.alive:hover rect, .tree .node.alive:focus rect { stroke: var(--accent); }
+.tree .node:focus { outline: none; }
+.tree text { font: 500 11px var(--sans); fill: var(--muted); }
+.tree text.nm { font-weight: 600; fill: var(--text); }
+.tree text.up { fill: var(--up); }
+.tree text.down { fill: var(--down); }
+
+/* Command palette */
+.btn.cmdk { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); padding: 0 8px; }
+.btn.cmdk kbd, .pal-item kbd { font: 500 11px var(--sans); border: 1px solid var(--border-strong); border-radius: 4px; padding: 0 5px; color: var(--muted); background: var(--card); }
+dialog.palette { max-width: min(620px, calc(100vw - 32px)); margin-top: 12vh; }
+dialog.palette[open] { animation: palIn 160ms ease-out; }
+@keyframes palIn { from { opacity: 0; transform: translateY(-8px) scale(.98); } to { opacity: 1; transform: none; } }
+.pal { display: grid; }
+.pal-top { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--muted); }
+.pal-input { flex: 1; border: 0; background: transparent; color: var(--text); font-size: 15px; outline: none; min-width: 0; height: 28px; }
+.pal-list { list-style: none; margin: 0; padding: 6px; max-height: 52vh; overflow-y: auto; }
+.pal-item { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 7px 10px; border-radius: var(--r-md); cursor: pointer; }
+.pal-item.on { background: var(--accent-weak); }
+.pal-kind { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.pal-label { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pal-empty { padding: 14px 10px; color: var(--muted); }
+.pal-foot { margin: 0; padding: 8px 16px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); }
+
+/* Mac and desktop polish */
+html { -webkit-text-size-adjust: 100%; }
+body { -moz-osx-font-smoothing: grayscale; }
+.topbar { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+@media (display-mode: standalone), (display-mode: window-controls-overlay) {
+  .topbar { -webkit-app-region: drag; app-region: drag; padding-left: max(12px, env(titlebar-area-x, 0px)); }
+  .topbar button, .topbar select, .topbar input, .topbar a, .topbar .ticker { -webkit-app-region: no-drag; app-region: no-drag; }
+}
+.vlist, .bot-list, .feed-body, .pal-list { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+@media (max-width: 1840px) and (min-width: 901px) { .btn.cmdk kbd { display: none; } .btn.cmdk { width: 30px; padding: 0; justify-content: center; } }
+@media (max-width: 900px) {
+  .btn.cmdk { display: none; }
+  .legend-trades { display: none; }
+  .chart-tools { padding: 5px 16px; }
+  .gen-toast { right: 12px; left: 12px; width: auto; bottom: calc(56px + env(safe-area-inset-bottom)); }
+}
+@media (prefers-reduced-motion: reduce) { .gen-toast { transition: none; } }
+@media (max-width: 1460px) and (min-width: 1367px) { .topbar { gap: 9px; } .controls { gap: 5px; } .btn { padding: 0 10px; } }
+@media (max-width: 900px) {
+  .chart-tools { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 8px; }
+  .chart-tools::-webkit-scrollbar { display: none; }
+  .chart-tools .seg, .toggles { flex: none; flex-wrap: nowrap; }
+  .zoom { display: none; }   /* pinch and drag on the chart instead */
+  .tog { height: 28px; }
 }
 
 </style>
@@ -439,7 +573,11 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
       <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 3v12m0 0a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm12-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 0v3a3 3 0 0 1-3 3H9"/></svg>
       <span>Trading data bot</span><span class="dot" id="dataBotDot" hidden></span>
     </button>
-    <button id="btnTheme" class="btn icon" type="button" aria-label="Toggle light or dark theme">
+    <button id="btnPalette" class="btn cmdk" type="button" aria-haspopup="dialog" aria-label="Commands and search">
+      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="m21 21-4.3-4.3M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>
+      <kbd id="palKbd">Ctrl+K</kbd>
+    </button>
+    <button id="btnTheme" class="btn icon" type="button" aria-label="Toggle light or dark theme" title="Light or dark (double-click: follow the system)">
       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
     </button>
   </div>
@@ -500,6 +638,25 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
         <button type="button" role="tab" class="seg-btn" data-tf="1D" aria-selected="false">1D</button>
       </div>
     </div>
+    <div class="chart-tools" role="toolbar" aria-label="Chart tools">
+      <div class="seg" role="group" aria-label="Chart type">
+        <button type="button" class="seg-btn active" data-ctype="candle" aria-pressed="true">Candles</button>
+        <button type="button" class="seg-btn" data-ctype="line" aria-pressed="false">Line</button>
+        <button type="button" class="seg-btn" data-ctype="area" aria-pressed="false">Area</button>
+      </div>
+      <div class="toggles" role="group" aria-label="Indicators">
+        <button type="button" class="tog i-sma20" data-ind="sma20" aria-pressed="true">SMA 20</button>
+        <button type="button" class="tog i-sma50" data-ind="sma50" aria-pressed="false">SMA 50</button>
+        <button type="button" class="tog i-bb" data-ind="bb" aria-pressed="false">Bollinger</button>
+        <button type="button" class="tog i-vwap" data-ind="vwap" id="indVwap" aria-pressed="false">VWAP</button>
+      </div>
+      <span class="legend-trades" aria-hidden="true"><i class="tri up"></i>bot buys <i class="tri down"></i>bot sells</span>
+      <div class="zoom" role="group" aria-label="Zoom">
+        <button type="button" class="btn icon small" id="btnZoomOut" aria-label="Zoom out" title="Zoom out (−)">−</button>
+        <button type="button" class="btn icon small" id="btnZoomIn" aria-label="Zoom in" title="Zoom in (+). Pinch or scroll on the chart, drag to pan.">+</button>
+        <button type="button" class="btn small" id="btnLive" hidden title="Back to the latest bars (0 or double-click the chart)">Live</button>
+      </div>
+    </div>
     <div class="fund-row" id="fundRow" aria-label="Fundamentals and technicals">
       <div><span class="k">Mkt cap</span><span id="fCap" class="num"></span></div>
       <div><span class="k">P/E</span><span id="fPE" class="num"></span></div>
@@ -512,7 +669,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
       <div><span class="k">6M range</span><span id="fRange" class="num"></span></div>
       <div><span class="k">Beta</span><span id="fBeta" class="num"></span></div>
     </div>
-    <div class="chart-wrap"><canvas id="mainChart" aria-label="Price chart" role="img"></canvas></div>
+    <div class="chart-wrap"><canvas id="mainChart" aria-label="Price chart. Scroll or pinch to zoom, drag to pan, double-click for the latest bars." role="img"></canvas></div>
     <div class="minis-head"><h3>Live charts</h3><span class="muted">Most held by bots, then biggest movers. Select one to open it.</span></div>
     <div id="minis" class="minis"></div>
   </section>
@@ -680,6 +837,8 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
   <button type="button" data-panel="pFeed">News</button>
 </nav>
 
+<div class="gen-toast" id="genToast" role="status" aria-live="polite" hidden></div>
+
 <footer class="statusbar">
   <span id="status">Ready. Press Start.</span>
   <span class="muted"><span id="updateStatus">Checking GitHub for updates…</span> · Fictional market: real US symbols, simulated prices. Not investment advice.</span>
@@ -742,6 +901,19 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
         <option value="400">400 stocks a day (big model, big files)</option>
       </select>
       <span class="hint">Stocks the bots hold and stocks with news that day are always sampled too. This is the biggest table in the training data.</span></div>
+    <div class="grid2">
+      <div class="field"><label class="label" for="inSymbols">Market size</label>
+        <select class="select full" id="inSymbols">
+          <option value="0" selected>Full market (every symbol)</option>
+          <option value="3000">3,000 symbols (faster)</option>
+          <option value="1500">1,500 symbols (older laptops, phones)</option>
+          <option value="500">500 symbols (fastest, lowest memory)</option>
+        </select>
+        <span class="hint">Biggest companies are kept. Fewer symbols means more bots and more speed on the same machine.</span></div>
+      <div class="field"><span class="label">Background</span>
+        <label class="check"><input type="checkbox" id="inBackground" checked> Keep running when this tab or window is in the background</label>
+        <span class="hint">Drawing pauses while hidden, so the simulation gets the whole processor.</span></div>
+    </div>
     <div class="field"><label class="label" for="inBudget">Memory for trade-level data</label>
       <select class="select full" id="inBudget">
         <option value="3000000">About 150 MB (phones)</option>
@@ -786,7 +958,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
         </ol>
       </details>
     </div>
-    <div class="field"><label class="check"><input type="checkbox" id="docsAuto"> Send automatically: open a pull request when a run or a training finishes</label>
+    <div class="field"><label class="check"><input type="checkbox" id="docsAuto"> Send automatically (on by default): open a pull request when a run or a training finishes. The repository's bot merges it for you</label>
       <span class="hint">In endless runs the run's pull request is also updated every <input class="input tiny" id="docsEvery" type="number" min="1" max="10000" value="25" aria-label="Generations between updates"> generations.</span></div>
     <div class="dlg-actions left">
       <button type="submit" class="btn primary" id="btnDocsSend">Open pull request</button>
@@ -797,6 +969,18 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
     <p class="docs-status" id="docsStatus" role="status"></p>
     <p class="err" id="docsErr" role="alert" hidden></p>
   </form>
+</dialog>
+
+<dialog id="dlgPalette" class="palette" aria-label="Commands and search">
+  <div class="pal">
+    <div class="pal-top">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="m21 21-4.3-4.3M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>
+      <input id="palInput" class="pal-input" type="text" role="combobox" aria-expanded="true" aria-controls="palList" aria-autocomplete="list"
+        placeholder="Type an action, a symbol or a bot" autocomplete="off" spellcheck="false">
+    </div>
+    <ul id="palList" class="pal-list" role="listbox" aria-label="Results"></ul>
+    <p class="pal-foot">↑ ↓ to move · Enter to run · Esc to close · Single keys work anywhere: Space start/pause, 1–5 speed, N new run, D data, C chart type, + − zoom, ← → pan, ↑ ↓ symbols</p>
+  </div>
 </dialog>
 
 <dialog id="dlgFinish" aria-labelledby="dlgFinishTitle">
@@ -905,6 +1089,27 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     var m = Math.sqrt(-2 * Math.log(x) / x);
     this._spare = w * m;
     return u * m;
+  };
+  /* A cheaper normal from one uniform draw and a precomputed inverse-CDF table (tails reach about 4.4 sigma).
+   * Used for the cosmetic parts of every bar (wicks, volume, open noise) where the exact far tail doesn't matter. */
+  var FN = 16384, FNT = (function () {
+    function inv(p) {   // Acklam's inverse normal CDF
+      var a = [-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269, -30.66479806614716, 2.506628277459239],
+        b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972, -13.28068155288572],
+        c = [-0.007784894002430293, -0.3223964580411365, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783],
+        d = [0.007784695709041462, 0.3224671290700398, 2.445134137142996, 3.754408661907416], q, r;
+      if (p < 0.02425) { q = Math.sqrt(-2 * Math.log(p)); return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
+      if (p > 1 - 0.02425) { q = Math.sqrt(-2 * Math.log(1 - p)); return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
+      q = p - 0.5; r = q * q;
+      return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+    }
+    var t = new Float64Array(FN + 1);
+    for (var k = 0; k <= FN; k++) t[k] = inv((k + 0.5) / (FN + 1));
+    return t;
+  })();
+  RNG.prototype.fastNormal = function () {
+    var x = this.next() * FN, k = x | 0;
+    return FNT[k] + (FNT[k + 1] - FNT[k]) * (x - k);
   };
   // Student-t with nu degrees of freedom, rescaled to unit variance (fat tails).
   RNG.prototype.studentT = function (nu) {
@@ -1332,6 +1537,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     this.date = new Date(this.startDate.getTime());
     this._poolBar = -1; this._pool = null;
     this.featureStamp = new Int32Array(n).fill(-1);
+    this.m20 = new Float64Array(n); this.sd20 = new Float64Array(n); this.m20Stamp = new Int32Array(n).fill(-1);
     this.NF = 15;
     this.lastBreadth = null;
     this.lastSectorRet = new Float64Array(T.SECTORS.length);
@@ -1383,6 +1589,9 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     return (h > 12 ? h - 12 : h) + ":" + (m < 10 ? "0" : "") + m + (h >= 12 ? " PM" : " AM");
   };
 
+  // exp(0.35 * N(0,1)) quantiles, for bar volume
+  var LOGN = (function () { var t = new Float64Array(4096), g = new T.RNG(7); for (var k = 0; k < 4096; k++) t[k] = Math.exp(0.35 * g.fastNormal()); return t; })();
+
   function tickRound(p) { return p >= 1 ? Math.round(p * 100) / 100 : Math.max(0.0001, Math.round(p * 10000) / 10000); }
 
   /* History before the run: daily candles ending exactly at the listing price. */
@@ -1407,12 +1616,12 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       var prev = p0 * Math.exp(lr[0] - L - (lr[1] - lr[0]));
       for (t = 0; t < BACKFILL; t++) {
         var c = tickRound(p0 * Math.exp(lr[t] - L));
-        var o = tickRound(prev * Math.exp(0.25 * dv * r.normal()));
-        var hi = Math.max(o, c) * Math.exp(Math.abs(r.normal()) * dv * 0.45);
-        var lo = Math.min(o, c) * Math.exp(-Math.abs(r.normal()) * dv * 0.45);
+        var o = tickRound(prev * Math.exp(0.25 * dv * r.fastNormal()));
+        var hi = Math.max(o, c) * Math.exp(Math.abs(r.fastNormal()) * dv * 0.45);
+        var lo = Math.min(o, c) * Math.exp(-Math.abs(r.fastNormal()) * dv * 0.45);
         var slot = base + (t % D);
         this.dO[slot] = o; this.dH[slot] = tickRound(hi); this.dL[slot] = tickRound(lo); this.dC[slot] = c;
-        this.dV[slot] = this.avgVol[i] * Math.exp(0.35 * r.normal()) * (1 + 8 * Math.abs(Math.log(c / prev)) / dv * 0.1);
+        this.dV[slot] = this.avgVol[i] * Math.exp(0.35 * r.fastNormal()) * (1 + 8 * Math.abs(Math.log(c / prev)) / dv * 0.1);
         prev = c;
       }
       this.price[i] = p0; this.prevClose[i] = p0;
@@ -1522,7 +1731,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     this.price[i] *= f; this.prevClose[i] *= f; this.dOpen[i] *= f; this.dHigh[i] *= f; this.dLow[i] *= f;
     this.shares[i] /= f; this.eps[i] *= f; this.hiRange[i] *= f; this.loRange[i] *= f;
     this.rsiG[i] *= f; this.rsiL[i] *= f; this.vwapPV[i] *= f; this.splitAdj[i] *= f; this.avgVol[i] /= f;
-    this.belowDollar[i] = 0; this.splitCount[i]++;
+    this.belowDollar[i] = 0; this.splitCount[i]++; this.m20Stamp[i] = -1; this.featureStamp[i] = -1;
     for (k = 0; k < INTRA; k++) { a = i * INTRA + k; this.iO[a] *= f; this.iH[a] *= f; this.iL[a] *= f; this.iC[a] *= f; this.iV[a] /= f; }
     for (k = 0; k < DAILY; k++) { a = i * DAILY + k; this.dO[a] *= f; this.dH[a] *= f; this.dL[a] *= f; this.dC[a] *= f; this.dV[a] /= f; }
     this.logNews({ id: 0, day: this.day, bar: this.bar, scope: "stock", target: i, sym: this.sym[i], kind: "split", impact: 0, sentiment: 0,
@@ -1608,7 +1817,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       var pend = this.pending[i];
       if (pend !== 0) {
         var a = pend * (opening ? 0.8 : 0.45);
-        a *= 1 + 0.25 * r.normal();                    // over/under-shoot
+        a *= 1 + 0.25 * r.fastNormal();                // over/under-shoot
         ret += a; pend -= a;
         this.pending[i] = Math.abs(pend) < 1e-5 ? 0 : pend;
       }
@@ -1623,10 +1832,10 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       var o = p, c = tickRound(p * Math.exp(ret));
       if (c <= 0.0001) c = 0.0001;
       var wig = Math.abs(sig) * 0.55;
-      var hi = tickRound(Math.max(o, c) * Math.exp(Math.abs(r.normal()) * wig));
-      var lo = tickRound(Math.min(o, c) * Math.exp(-Math.abs(r.normal()) * wig));
+      var hi = tickRound((o > c ? o : c) * (1 + wig * Math.abs(r.fastNormal())));   // exp(x) ~ 1+x: wig is a fraction of a percent
+      var lo = tickRound((o < c ? o : c) * (1 - wig * Math.abs(r.fastNormal())));
       var zz = sig > 0 ? Math.abs(ret) / (sig + 1e-9) : 0;
-      var vol = this.avgVol[i] / BPD * uv * Math.exp(0.35 * r.normal()) * (0.7 + 0.3 * Math.min(zz, 8)) * Math.sqrt(this.volState[i]);
+      var vol = this.avgVol[i] / BPD * uv * LOGN[(r.next() * 4096) | 0] * (0.7 + 0.3 * Math.min(zz, 8)) * Math.sqrt(this.volState[i]);
       iO[slot] = o; iH[slot] = hi; iL[slot] = lo; iC[slot] = c; iV[slot] = vol;
       this.price[i] = c;
       if (hi > this.dHigh[i]) this.dHigh[i] = hi;
@@ -1833,9 +2042,14 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     var cl = this.closed() ? 1 : 0;
     var r1d = Math.log(p / this.refClose(i));
     var r5 = Math.log(p / this.backClose(i, 5));
-    var sum = 0, sum2 = 0;
-    for (var k = 1; k <= 20; k++) { var c = this.backClose(i, k); sum += c; sum2 += c * c; }
-    var mean = sum / 20, sd = Math.sqrt(Math.max(sum2 / 20 - mean * mean, 1e-9));
+    var key = this.dayIdx * 2 + cl, mean, sd;   // the 20 closes only change when a day closes (or on a split)
+    if (this.m20Stamp[i] === key) { mean = this.m20[i]; sd = this.sd20[i]; }
+    else {
+      var sum = 0, sum2 = 0;
+      for (var k = 1; k <= 20; k++) { var c = this.backClose(i, k); sum += c; sum2 += c * c; }
+      mean = sum / 20; sd = Math.sqrt(Math.max(sum2 / 20 - mean * mean, 1e-9));
+      this.m20[i] = mean; this.sd20[i] = sd; this.m20Stamp[i] = key;
+    }
     var frac = cl ? 1 : Math.max(this.bar, 1) / BPD;
     var vsurge = this.dVolume[i] / (this.avgVol[i] * frac + 1);
     var idx5 = Math.log(this.index / this.idx.dC[(this.dayIdx - 5 - cl + DAILY) % DAILY]);
@@ -1864,18 +2078,48 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     if (this._poolBar === this.gBar) return this._pool;
     var set = Object.create(null), out = [], i, k;
     for (k = 0; k < this.liquid.length; k++) { i = this.liquid[k]; set[i] = 1; out.push(i); }
-    var movers = this.topMovers(40, true).concat(this.topMovers(40, false));
-    for (k = 0; k < movers.length; k++) { i = movers[k]; if (!set[i]) { set[i] = 1; out.push(i); } }
+    var mv = this.movers(40);
+    for (k = 0; k < mv.length; k++) { i = mv[k]; if (!set[i]) { set[i] = 1; out.push(i); } }
     var added = 0;
     for (k = this.recentNews.length - 1; k >= 0 && added < 60; k--) {
       var it = this.recentNews[k];
       if (it.scope === "stock" && !set[it.target]) { set[it.target] = 1; out.push(it.target); added++; }
     }
-    var self = this;
-    out = out.filter(function (j) { return self.price[j] >= 1 && !self.isHalted(j); });
+    var keep = 0, mh = this.haltMarketUntil > this.gBar;
+    for (k = 0; k < out.length; k++) { i = out[k]; if (this.price[i] >= 1 && !mh && !(this.haltUntil[i] > this.gBar)) out[keep++] = i; }
+    out.length = keep;
     this._pool = out; this._poolBar = this.gBar;
     return out;
   };
+  /* The pool's 15 bot inputs packed into one contiguous array, built once per bar and shared by every bot. */
+  Market.prototype.poolMatrix = function () {
+    if (this._pmBar === this.gBar) return this._pm;
+    var pool = this.pool(), F = this.NF, X = this._pmX && this._pmX.length >= pool.length * F ? this._pmX : new Float32Array(Math.max(pool.length, 512) * F);
+    for (var j = 0; j < pool.length; j++) {
+      var base = this.featuresOf(pool[j]), o = j * F;
+      for (var k = 0; k < F; k++) X[o + k] = this.features[base + k];
+    }
+    this._pmX = X; this._pm = { idx: pool, X: X, n: pool.length }; this._pmBar = this.gBar;
+    return this._pm;
+  };
+
+  /* Today's top `count` gainers and losers among liquid names, in one pass with no per-stock allocations. */
+  Market.prototype.movers = function (count) {
+    var n = this.n, us = new Float64Array(count).fill(-Infinity), ui = new Int32Array(count).fill(-1),
+      ds = new Float64Array(count).fill(-Infinity), di = new Int32Array(count).fill(-1), i, j;
+    for (i = 0; i < n; i++) {
+      var p = this.price[i];
+      if (p < 1 || this.avgVol[i] * p < 2e6) continue;
+      var c = p / this.prevClose[i] - 1;
+      if (c > us[count - 1]) { for (j = count - 1; j > 0 && us[j - 1] < c; j--) { us[j] = us[j - 1]; ui[j] = ui[j - 1]; } us[j] = c; ui[j] = i; }
+      if (-c > ds[count - 1]) { for (j = count - 1; j > 0 && ds[j - 1] < -c; j--) { ds[j] = ds[j - 1]; di[j] = di[j - 1]; } ds[j] = -c; di[j] = i; }
+    }
+    var out = [];
+    for (j = 0; j < count; j++) if (ui[j] >= 0) out.push(ui[j]);
+    for (j = 0; j < count; j++) if (di[j] >= 0) out.push(di[j]);
+    return out;
+  };
+
   Market.prototype.topMovers = function (count, up) {
     var n = this.n, best = [], i;
     for (i = 0; i < n; i++) {
@@ -2153,6 +2397,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
   Bot.prototype.reset = function () {
     this.cash = this.startCash;
     this.pos = Object.create(null);  // symbol index -> position
+    this.plist = [];                 // the same positions' symbol indices, for fast per-bar loops
     this.nPos = 0;
     this.trades = [];
     this.roundTrips = [];
@@ -2178,19 +2423,42 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     return (sign >= 0 ? "" : "Contra ") + FEATURE_NAMES[best];
   }
 
-  Bot.prototype.score = function (m, i) {
-    var base = m.featuresOf(i), f = m.features, w = this.genome.w, out = w[NW - 1], c = this.cfg, fm = c.fmult;
-    for (var h = 0; h < H; h++) {
-      var a = w[NF * H + h];
-      for (var k = 0; k < NF; k++) a += f[base + k] * fm[k] * w[k * H + h];
-      out += Math.tanh(a) * w[NF * H + H + h];
+  /* tanh to within 1e-6 for |x| < 4.9 (Pade approximant), much cheaper than Math.tanh in the hot loop. */
+  function ftanh(x) {
+    if (x > 4.9) return 1; if (x < -4.9) return -1;
+    var x2 = x * x;
+    return x * (135135 + x2 * (17325 + x2 * (378 + x2))) / (135135 + x2 * (62370 + x2 * (3150 + x2 * 28)));
+  }
+
+  /* Input weights with the bot's trait multipliers folded in (they never change for a bot). */
+  Bot.prototype.weights = function () {
+    if (this._weff) return this._weff;
+    var w = this.genome.w, fm = this.cfg.fmult, W = new Float32Array(NF * H);
+    for (var k = 0; k < NF; k++) for (var h = 0; h < H; h++) W[k * H + h] = w[k * H + h] * fm[k];
+    return (this._weff = W);
+  };
+
+  /* Score row j of the shared pool matrix. Same network as score(), unrolled for H = 8 hidden units. */
+  Bot.prototype.scoreRow = function (X, o) {
+    var W = this._weff || this.weights(), w = this.genome.w, c = this.cfg, b = NF * H, v = b + H;
+    var a0 = w[b], a1 = w[b + 1], a2 = w[b + 2], a3 = w[b + 3], a4 = w[b + 4], a5 = w[b + 5], a6 = w[b + 6], a7 = w[b + 7];
+    for (var k = 0, q = 0; k < NF; k++, q += 8) {
+      var x = X[o + k];
+      a0 += x * W[q]; a1 += x * W[q + 1]; a2 += x * W[q + 2]; a3 += x * W[q + 3];
+      a4 += x * W[q + 4]; a5 += x * W[q + 5]; a6 += x * W[q + 6]; a7 += x * W[q + 7];
     }
-    return Math.tanh(out + c.herdBias * f[base + 7] + c.sizeBias * f[base + 10] + c.volBias * f[base + 5]);
+    var out = w[NW - 1] + ftanh(a0) * w[v] + ftanh(a1) * w[v + 1] + ftanh(a2) * w[v + 2] + ftanh(a3) * w[v + 3] +
+      ftanh(a4) * w[v + 4] + ftanh(a5) * w[v + 5] + ftanh(a6) * w[v + 6] + ftanh(a7) * w[v + 7];
+    return ftanh(out + c.herdBias * X[o + 7] + c.sizeBias * X[o + 10] + c.volBias * X[o + 5]);
+  };
+
+  Bot.prototype.score = function (m, i) {
+    return this.scoreRow(m.features, m.featuresOf(i));
   };
 
   Bot.prototype.markEquity = function (m) {
     var e = this.cash, gross = 0, net = 0;
-    for (var k in this.pos) { var p = this.pos[k], v = p.q * m.price[k]; e += v; gross += Math.abs(v); net += v; }
+    for (var j = 0, L = this.plist; j < L.length; j++) { var k = L[j], p = this.pos[k], v = p.q * m.price[k]; e += v; gross += v < 0 ? -v : v; net += v; }
     this.equity = e;
     this.gross = gross; this.net = net;
     if (e > this.peakEquity) this.peakEquity = e;
@@ -2235,7 +2503,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     if (!p) {
       this.pos[i] = { q: qty, avg: px, day: m.day, bar: m.bar, gBar: m.gBar, peak: px, trough: px, score: score === undefined ? null : score,
         why: reason, regime: m.REGIMES[m.regime].name, fees: fee, rsi: Math.round(m.rsi(i) * 10) / 10, snap: m.snapshot(i) };
-      this.nPos++;
+      this.nPos++; this.plist.push(i);
     } else if ((p.q > 0) === (qty > 0)) {
       p.avg = (p.avg * p.q + px * qty) / (p.q + qty); p.q += qty; p.fees += fee;
     } else {
@@ -2244,13 +2512,33 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       p.fees += fee;
       this.bookTrip(m, i, p, px, closeQ, realized, reason);
       p.q += qty;
-      if (Math.abs(p.q) < 1e-9) { delete this.pos[i]; this.nPos--; }
+      if (Math.abs(p.q) < 1e-9) this.dropPos(i);
     }
     this.trades.push({ day: m.day, bar: m.bar, sym: sym, sector: T.SECTORS[m.sector[i]],
       side: qty > 0 ? (realized !== null ? "COVER" : "BUY") : (realized !== null ? "SELL" : "SHORT"),
       qty: Math.abs(qty), px: px, mid: m.price[i], spreadBps: q.spread * 1e4, impactBps: impact * 1e4, notional: notional,
       fee: fee, pnl: realized, reason: reason, score: score === undefined ? null : score, cashAfter: this.cash });
     return true;
+  };
+
+  var CB = { s: new Float64Array(0), i: new Int32Array(0) }, CW = { s: new Float64Array(0), i: new Int32Array(0) };
+  /* The k highest-scoring candidates, best first, as [score, symbol] pairs. */
+  function topK(buf, n, k) {
+    var out = [];
+    if (k <= 0 || n === 0) return out;
+    if (n <= k) { for (var a = 0; a < n; a++) out.push([buf.s[a], buf.i[a]]); return out.sort(function (x, y) { return y[0] - x[0]; }); }
+    var used = new Uint8Array(n);
+    for (var r = 0; r < k; r++) {
+      var bi = -1, bs = -Infinity;
+      for (var t = 0; t < n; t++) if (!used[t] && buf.s[t] > bs) { bs = buf.s[t]; bi = t; }
+      used[bi] = 1; out.push([bs, buf.i[bi]]);
+    }
+    return out;
+  }
+
+  Bot.prototype.dropPos = function (i) {
+    delete this.pos[i]; this.nPos--;
+    var k = this.plist.indexOf(i); if (k >= 0) this.plist.splice(k, 1);
   };
 
   Bot.prototype.closeAll = function (m, reason) {
@@ -2263,7 +2551,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
         this.bookTrip(m, +k, p, px, Math.abs(p.q), pnl, reason + " (halted, marked)");
         this.trades.push({ day: m.day, bar: m.bar, sym: m.sym[k], sector: T.SECTORS[m.sector[k]], side: p.q > 0 ? "SELL" : "COVER", qty: Math.abs(p.q),
           px: px, mid: px, spreadBps: 0, impactBps: 0, notional: Math.abs(p.q) * px, fee: 0, pnl: pnl, reason: reason + " (halted, marked)", score: null, cashAfter: this.cash });
-        delete this.pos[k]; this.nPos--;
+        this.dropPos(+k);
       }
     }
   };
@@ -2281,7 +2569,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     var newQ = p.q / f, whole = newQ > 0 ? Math.floor(newQ) : Math.ceil(newQ);
     this.cash += (newQ - whole) * m.price[i];  // cash in lieu of fractional shares
     p.avg *= f; p.peak *= f; p.trough *= f; p.q = whole;
-    if (whole === 0) { delete this.pos[i]; this.nPos--; }
+    if (whole === 0) this.dropPos(i);
   };
 
   /* Called every bar. Returns true if the bot acted. */
@@ -2291,9 +2579,9 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     // margin: liquidate if equity falls below 30% of gross exposure
     if (this.gross > 0 && e < 0.3 * this.gross) { this.marginCalls++; this.closeAll(m, "margin call"); return true; }
 
-    // track excursions and run risk exits every bar
-    for (var k in this.pos) {
-      var p = this.pos[k], px = m.price[k], long = p.q > 0;
+    // track excursions and run risk exits every bar (backwards: an exit removes the entry)
+    for (var j = this.plist.length - 1; j >= 0; j--) {
+      var k = this.plist[j], p = this.pos[k], px = m.price[k], long = p.q > 0;
       if (px > p.peak) p.peak = px;
       if (px < p.trough) p.trough = px;
       var ret = long ? px / p.avg - 1 : 1 - px / p.avg;
@@ -2303,7 +2591,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       else if (c.trail && ret > c.stopLoss && fromRef <= -c.stopLoss) reason = "trailing stop";
       else if (ret >= c.takeProfit) reason = "take profit";
       else if (m.day - p.day >= c.maxHold) reason = "max hold";
-      if (reason) this.fill(m, +k, -p.q, reason);
+      if (reason) this.fill(m, k, -p.q, reason);
     }
 
     if (m.gBar % 6 === 0) {
@@ -2313,23 +2601,26 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     if ((m.gBar + this.offset) % c.interval !== 0) return false;
 
     // re-score holdings, exit if the signal turned
-    for (k in this.pos) {
-      var s = this.score(m, +k), q = this.pos[k].q;
-      if ((q > 0 && s < c.sellTh) || (q < 0 && s > -c.sellTh)) this.fill(m, +k, -q, "signal");
+    for (j = this.plist.length - 1; j >= 0; j--) {
+      var h = this.plist[j], s = this.score(m, h), q = this.pos[h].q;
+      if ((q > 0 && s < c.sellTh) || (q < 0 && s > -c.sellTh)) this.fill(m, h, -q, "signal");
     }
     if (m.bar >= m.BARS_PER_DAY - 1) return true;  // no new entries into the closing print
     if (m.bar < c.entryFrom || m.bar > c.entryTo) return true;   // outside this bot's trading hours (a trait)
 
-    var pool = m.pool(), best = [], worst = [], buyTh = c.buyTh;
-    for (var j = 0; j < pool.length; j++) {
+    if (this.nPos >= c.maxPos) return true;   // full: nothing to buy, so don't score the market
+    // candidates go into shared buffers (no per-stock allocations), then the best few are picked in order
+    var pm = m.poolMatrix(), pool = pm.idx, X = pm.X, buyTh = c.buyTh, secs = c.sectors, sector = m.sector, nb = 0, nw = 0;
+    if (CB.s.length < pm.n) { CB.s = new Float64Array(pm.n * 2); CB.i = new Int32Array(pm.n * 2); CW.s = new Float64Array(pm.n * 2); CW.i = new Int32Array(pm.n * 2); }
+    for (j = 0; j < pm.n; j++) {
       var i = pool[j];
-      if (this.pos[i] || (c.sectors && !c.sectors[m.sector[i]])) continue;
-      var sc = this.score(m, i);
-      if (sc > buyTh) best.push([sc, i]);
-      else if (c.shortOn && sc < -buyTh) worst.push([sc, i]);
+      if (this.pos[i] || (secs && !secs[sector[i]])) continue;
+      var sc = this.scoreRow(X, j * NF);
+      if (sc > buyTh) { CB.s[nb] = sc; CB.i[nb++] = i; }
+      else if (c.shortOn && sc < -buyTh) { CW.s[nw] = -sc; CW.i[nw++] = i; }
     }
-    best.sort(function (a, b) { return b[0] - a[0]; });
-    worst.sort(function (a, b) { return a[0] - b[0]; });
+    var best = topK(CB, nb, c.maxPos - this.nPos), worst = topK(CW, nw, c.maxPos - this.nPos);
+    worst.forEach(function (x) { x[0] = -x[0]; });
     var slots = c.maxPos - this.nPos;
     var reserve = e * c.cashReserve;
     var ib = 0, iw = 0;
@@ -3146,7 +3437,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       });
     }
     this.gen--;
-    retired.forEach(function (b) { if (next.indexOf(b) < 0) { b.trades = []; b.roundTrips = []; b.intraCurve = []; b.idxCurve = []; b.expCurve = []; b.pos = {}; } });
+    retired.forEach(function (b) { if (next.indexOf(b) < 0) { b.trades = []; b.roundTrips = []; b.intraCurve = []; b.idxCurve = []; b.expCurve = []; b.pos = {}; b.plist = []; b.nPos = 0; } });
     this.bots = next;
     this.markAlive();
   };
@@ -3648,9 +3939,13 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
   "use strict";
 
   function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  var palCache = null, palTheme = null;
   function palette() {
-    return { up: css("--up"), down: css("--down"), grid: css("--grid"), text: css("--muted"), strong: css("--text"),
-      cross: css("--cross"), accent: css("--accent"), card: css("--card"), elev: css("--elev2"), border: css("--border-strong") };
+    var th = document.documentElement.dataset.theme;
+    if (palCache && palTheme === th) return palCache;
+    palTheme = th;
+    return (palCache = { up: css("--up"), down: css("--down"), grid: css("--grid"), text: css("--muted"), strong: css("--text"),
+      cross: css("--cross"), accent: css("--accent"), warn: css("--warn"), violet: css("--violet"), card: css("--card"), elev: css("--elev2"), border: css("--border-strong") });
   }
   T.chartPalette = palette;
 
@@ -3684,31 +3979,114 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * mag;
   }
 
-  /* Main chart */
+  /* Main chart: candles, line or area, with volume, indicators, bot trade markers, crosshair,
+   * zoom (wheel, trackpad pinch, Safari gestures, two-finger touch, + / - keys) and pan (drag, horizontal scroll). */
   function CandleChart(canvas) {
-    this.c = canvas; this.data = null; this.hover = -1; this.labelFn = null;
-    var self = this;
-    function move(e) {
-      var r = canvas.getBoundingClientRect();
-      self.mx = e.clientX - r.left; self.my = e.clientY - r.top; self.draw();
-    }
-    canvas.addEventListener("pointermove", move);
-    canvas.addEventListener("pointerdown", move);
-    canvas.addEventListener("pointerleave", function () { self.mx = -1; self.draw(); });
-    this.mx = -1;
+    this.c = canvas; this.data = null; this.labelFn = null; this.mx = -1; this.my = -1;
+    this.span = 0;      // bars in view; 0 = fit to the width
+    this.off = 0;       // bars hidden on the right; 0 = following the live bar
+    this.type = "candle"; this.ind = { sma20: true, sma50: false, bb: false, vwap: false }; this.markers = null;
+    this.onView = null; this._raf = 0; this._sig = "";
+    var self = this, drag = null, pts = {}, pinch = null;
+    function pos(e) { var r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+    canvas.addEventListener("pointermove", function (e) {
+      var p = pos(e); self.mx = p.x; self.my = p.y;
+      if (pts[e.pointerId]) pts[e.pointerId] = p;
+      var ids = Object.keys(pts);
+      if (ids.length === 2 && pinch) {
+        var a = pts[ids[0]], b = pts[ids[1]], d = Math.abs(a.x - b.x) + 1;
+        self.zoomBy(pinch.d / d, (a.x + b.x) / 2); pinch.d = d;
+      } else if (drag && e.buttons) {
+        var dx = p.x - drag.x; drag.x = p.x;
+        self.panBy(dx / self.barW());
+      }
+      self.req();
+    });
+    canvas.addEventListener("pointerdown", function (e) {
+      var p = pos(e); self.mx = p.x; self.my = p.y; pts[e.pointerId] = p;
+      var ids = Object.keys(pts);
+      if (ids.length === 2) { pinch = { d: Math.abs(pts[ids[0]].x - pts[ids[1]].x) + 1 }; drag = null; }
+      else drag = { x: p.x };
+      try { canvas.setPointerCapture(e.pointerId); } catch (x) { /* older Safari */ }
+      self.req();
+    });
+    function up(e) { delete pts[e.pointerId]; if (Object.keys(pts).length < 2) pinch = null; if (!Object.keys(pts).length) drag = null; }
+    canvas.addEventListener("pointerup", up); canvas.addEventListener("pointercancel", up);
+    canvas.addEventListener("pointerleave", function (e) { if (e.pointerType === "mouse") { self.mx = -1; self.req(); } });
+    canvas.addEventListener("dblclick", function () { self.reset(); });
+    // Mac trackpads: pinch arrives as ctrl+wheel (Chrome, Firefox, Edge) or gesture events (Safari); two-finger sideways scroll pans
+    canvas.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      var p = pos(e), unit = e.deltaMode === 1 ? 16 : 1;
+      if (e.ctrlKey || e.metaKey) self.zoomBy(Math.exp(e.deltaY * unit * 0.01), p.x);
+      else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) self.panBy(-e.deltaX * unit / self.barW());
+      else self.zoomBy(Math.exp(e.deltaY * unit * 0.0025), p.x);
+    }, { passive: false });
+    var g0 = 1;
+    canvas.addEventListener("gesturestart", function (e) { e.preventDefault(); g0 = 1; });
+    canvas.addEventListener("gesturechange", function (e) { e.preventDefault(); self.zoomBy(g0 / e.scale, self.mx >= 0 ? self.mx : null); g0 = e.scale; });
+    canvas.addEventListener("gestureend", function (e) { e.preventDefault(); });
   }
-  CandleChart.prototype.set = function (d, labelFn) { this.data = d; this.labelFn = labelFn; this.draw(); };
+  CandleChart.prototype.req = function () {
+    var self = this;
+    if (!this._raf) this._raf = requestAnimationFrame(function () { self._raf = 0; self.draw(); });
+  };
+  CandleChart.prototype.layout = function () {
+    var W = this.c.clientWidth, plotW = Math.max(40, W - 64), n = this.data ? this.data.c.length : 0;
+    var fitBars = Math.max(10, Math.floor(plotW / 5));
+    var span = this.span ? Math.max(12, Math.min(this.span, Math.max(n, 12))) : Math.min(fitBars, Math.max(n, 30));
+    return { plotW: plotW, span: span, n: n };
+  };
+  CandleChart.prototype.barW = function () { var L = this.layout(); return L.plotW / Math.max(L.span, 1); };
+  CandleChart.prototype.zoomBy = function (f, atX) {
+    if (!this.data) return;
+    var L = this.layout(), old = L.span, next = Math.round(Math.max(12, Math.min(Math.max(L.n, 12), old * f)));
+    if (next === old) return;
+    if (atX !== null && atX !== undefined && atX < L.plotW) {   // keep the bar under the cursor in place
+      var fromRight = (1 - atX / L.plotW) * old;
+      this.off = Math.max(0, Math.round(this.off + fromRight - fromRight * next / old));
+    }
+    this.span = next; this.clampOff(); this.view(); this.req();
+  };
+  CandleChart.prototype.panBy = function (bars) {
+    if (!this.data) return;
+    this.off = this.off + bars; this.clampOff(); this.view(); this.req();
+  };
+  CandleChart.prototype.clampOff = function () {
+    var L = this.layout(); this.off = Math.max(0, Math.min(this.off, Math.max(0, L.n - Math.min(L.span, L.n))));
+    if (this.off < 0.5) this.off = 0;
+  };
+  CandleChart.prototype.reset = function () { this.span = 0; this.off = 0; this.view(); this.req(); };
+  CandleChart.prototype.view = function () { if (this.onView) this.onView({ live: this.off === 0, zoomed: this.span !== 0 }); };
+  CandleChart.prototype.set = function (d, labelFn, markers) {
+    this.data = d; this.labelFn = labelFn; this.markers = markers || null;
+    if (this.off && d) this.off += Math.max(0, d.c.length - (this._n || d.c.length));   // panned back: stay on the same bars
+    this._n = d ? d.c.length : 0;
+    this.clampOff(); this.req();
+  };
   CandleChart.prototype.draw = function () {
     var f = fit(this.c), ctx = f.ctx, W = f.w, H = f.h, d = this.data, P = palette();
     ctx.clearRect(0, 0, W, H);
     if (!d || !d.c.length || W < 50) return;
-    var axisW = 64, timeH = 18, padT = 10;
+    var axisW = 64, timeH = 18, padT = 22;
     var plotW = W - axisW, volH = Math.max(30, (H - timeH) * 0.18), priceH = H - timeH - volH - padT - 6;
-    var n = d.c.length, maxBars = Math.max(10, Math.floor(plotW / 5));
-    var start = Math.max(0, n - maxBars), cnt = n - start;
-    var bw = plotW / Math.max(cnt, 30), body = Math.max(1, Math.floor(bw * 0.68));
-    var hi = -Infinity, lo = Infinity, vmax = 0, i;
-    for (i = start; i < n; i++) { if (d.h[i] > hi) hi = d.h[i]; if (d.l[i] < lo) lo = d.l[i]; if (d.v[i] > vmax) vmax = d.v[i]; }
+    var n = d.c.length, L = this.layout(), off = Math.round(this.off);
+    var end = n - off, start = Math.max(0, end - L.span), i;
+    var bw = plotW / L.span, body = Math.max(1, Math.floor(bw * 0.68));
+    var hi = -Infinity, lo = Infinity, vmax = 0;
+    for (i = start; i < end; i++) { if (d.h[i] > hi) hi = d.h[i]; if (d.l[i] < lo) lo = d.l[i]; if (d.v[i] > vmax) vmax = d.v[i]; }
+    // indicator series over the whole data (so the first visible bars have values)
+    var sma20 = this.ind.sma20 || this.ind.bb ? sma(d.c, 20) : null, sma50 = this.ind.sma50 ? sma(d.c, 50) : null;
+    var bbU = null, bbL = null, vw = null;
+    if (this.ind.bb) {
+      bbU = new Float64Array(n).fill(NaN); bbL = new Float64Array(n).fill(NaN);
+      for (i = 19; i < n; i++) { var m = sma20[i], ss = 0; for (var q = i - 19; q <= i; q++) ss += (d.c[q] - m) * (d.c[q] - m); var sd = Math.sqrt(ss / 20); bbU[i] = m + 2 * sd; bbL[i] = m - 2 * sd; }
+      for (i = start; i < end; i++) { if (bbU[i] > hi) hi = bbU[i]; if (bbL[i] < lo) lo = bbL[i]; }
+    }
+    if (this.ind.vwap && d.bpd) {
+      vw = new Float64Array(n).fill(NaN); var pv = 0, vv = 0;
+      for (i = 0; i < n; i++) { if (((d.t[i] % d.bpd) + d.bpd) % d.bpd === 0) { pv = 0; vv = 0; } pv += (d.h[i] + d.l[i] + d.c[i]) / 3 * d.v[i]; vv += d.v[i]; vw[i] = vv > 0 ? pv / vv : d.c[i]; }
+    }
     if (hi === lo) { hi *= 1.001; lo *= 0.999; }
     var padP = (hi - lo) * 0.06; hi += padP; lo -= padP;
     var y = function (p) { return padT + (hi - p) / (hi - lo) * priceH; };
@@ -3726,61 +4104,172 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     // time labels
     ctx.textBaseline = "alphabetic";
     var every = Math.max(1, Math.ceil(80 / bw));
-    for (i = start; i < n; i++) {
+    for (i = start; i < end; i++) {
       if ((i - start) % every !== 0 || !this.labelFn) continue;
       var lx = xOf(i);
       ctx.strokeStyle = P.grid; ctx.beginPath(); ctx.moveTo(Math.round(lx) + 0.5, padT); ctx.lineTo(Math.round(lx) + 0.5, H - timeH); ctx.stroke();
       ctx.fillStyle = P.text; ctx.fillText(this.labelFn(d.t[i]), Math.min(lx - 14, plotW - 50), H - 5);
     }
-    // SMA 20
-    ctx.strokeStyle = P.accent; ctx.globalAlpha = 0.75; ctx.lineWidth = 1.25; ctx.beginPath();
-    var started = false, sum = 0;
-    for (i = 0; i < n; i++) {
-      sum += d.c[i]; if (i >= 20) sum -= d.c[i - 20];
-      if (i >= 19 && i >= start) { var sy = y(sum / 20); if (!started) { ctx.moveTo(xOf(i), sy); started = true; } else ctx.lineTo(xOf(i), sy); }
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, plotW, H); ctx.clip();
+    // Bollinger band fill
+    if (bbU) {
+      ctx.fillStyle = P.accent; ctx.globalAlpha = 0.07; ctx.beginPath();
+      var first = true;
+      for (i = start; i < end; i++) if (!isNaN(bbU[i])) { if (first) { ctx.moveTo(xOf(i), y(bbU[i])); first = false; } else ctx.lineTo(xOf(i), y(bbU[i])); }
+      for (i = end - 1; i >= start; i--) if (!isNaN(bbL[i])) ctx.lineTo(xOf(i), y(bbL[i]));
+      ctx.fill(); ctx.globalAlpha = 0.45; ctx.strokeStyle = P.accent; ctx.lineWidth = 1;
+      line(ctx, bbU, start, end, xOf, y); line(ctx, bbL, start, end, xOf, y); ctx.globalAlpha = 1;
     }
-    ctx.stroke(); ctx.globalAlpha = 1;
-    // candles + volume
+    // price
     var vTop = H - timeH - volH;
-    for (i = start; i < n; i++) {
-      var up = d.c[i] >= d.o[i], col = up ? P.up : P.down, x = xOf(i);
-      ctx.fillStyle = col; ctx.strokeStyle = col;
-      ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, y(d.h[i])); ctx.lineTo(Math.round(x) + 0.5, y(d.l[i])); ctx.stroke();
-      var yo = y(d.o[i]), yc = y(d.c[i]), top = Math.min(yo, yc), hh = Math.max(1, Math.abs(yc - yo));
-      ctx.fillRect(Math.round(x - body / 2), top, body, hh);
-      if (vmax > 0) {
+    if (this.type === "candle") {
+      for (i = start; i < end; i++) {
+        var upc = d.c[i] >= d.o[i], col = upc ? P.up : P.down, x = xOf(i);
+        ctx.fillStyle = col; ctx.strokeStyle = col;
+        ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, y(d.h[i])); ctx.lineTo(Math.round(x) + 0.5, y(d.l[i])); ctx.stroke();
+        var yo = y(d.o[i]), yc = y(d.c[i]), top = Math.min(yo, yc), hh = Math.max(1, Math.abs(yc - yo));
+        ctx.fillRect(Math.round(x - body / 2), top, body, hh);
+      }
+    } else {
+      var rising = d.c[end - 1] >= d.c[start], lc = rising ? P.up : P.down;
+      if (this.type === "area") {
+        var grad = ctx.createLinearGradient(0, padT, 0, vTop);
+        grad.addColorStop(0, hexA(lc, 0.28)); grad.addColorStop(1, hexA(lc, 0));
+        ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(xOf(start), vTop);
+        for (i = start; i < end; i++) ctx.lineTo(xOf(i), y(d.c[i]));
+        ctx.lineTo(xOf(end - 1), vTop); ctx.closePath(); ctx.fill();
+      }
+      ctx.strokeStyle = lc; ctx.lineWidth = 1.6; ctx.lineJoin = "round"; ctx.beginPath();
+      for (i = start; i < end; i++) { if (i === start) ctx.moveTo(xOf(i), y(d.c[i])); else ctx.lineTo(xOf(i), y(d.c[i])); }
+      ctx.stroke(); ctx.lineWidth = 1;
+    }
+    // moving averages and VWAP
+    ctx.lineWidth = 1.25;
+    if (this.ind.sma20) { ctx.strokeStyle = P.accent; ctx.globalAlpha = 0.85; line(ctx, sma20, start, end, xOf, y); }
+    if (sma50) { ctx.strokeStyle = P.warn; ctx.globalAlpha = 0.85; line(ctx, sma50, start, end, xOf, y); }
+    if (vw) { ctx.strokeStyle = P.violet; ctx.globalAlpha = 0.9; ctx.setLineDash([5, 3]); line(ctx, vw, start, end, xOf, y); ctx.setLineDash([]); }
+    ctx.globalAlpha = 1; ctx.lineWidth = 1;
+    // volume
+    if (vmax > 0) {
+      ctx.globalAlpha = 0.35;
+      for (i = start; i < end; i++) {
         var vh = d.v[i] / vmax * (volH - 4);
-        ctx.globalAlpha = 0.35; ctx.fillRect(Math.round(x - body / 2), H - timeH - vh, body, vh); ctx.globalAlpha = 1;
+        ctx.fillStyle = d.c[i] >= d.o[i] ? P.up : P.down;
+        ctx.fillRect(Math.round(xOf(i) - body / 2), H - timeH - vh, body, vh);
+      }
+      ctx.globalAlpha = 1;
+    }
+    // bot trades on this symbol: green triangles under the bar for buys and covers, red over the bar for sells and shorts
+    var tips = [];
+    if (this.markers && this.markers.length) {
+      var byT = this.markers.index;
+      for (i = start; i < end; i++) {
+        var mk = byT[d.t[i]]; if (!mk) continue;
+        var mx = xOf(i), sz = Math.max(4, Math.min(7, bw * 0.45));
+        if (mk.buy) { var yb = y(d.l[i]) + 5; tri(ctx, mx, yb, sz, true, P.up); if (mk.buy > 1) label(ctx, mk.buy, mx, yb + sz + 7, P.up); tips.push([i, mk]); }
+        if (mk.sell) { var ys = y(d.h[i]) - 5; tri(ctx, mx, ys, sz, false, P.down); if (mk.sell > 1) label(ctx, mk.sell, mx, ys - sz - 6, P.down); if (!mk.buy) tips.push([i, mk]); }
       }
     }
+    ctx.restore();
     ctx.strokeStyle = P.grid; ctx.beginPath(); ctx.moveTo(0, vTop + 0.5); ctx.lineTo(plotW, vTop + 0.5); ctx.stroke();
     // last price line
     var last = d.c[n - 1], ly = Math.round(y(last)) + 0.5, lastUp = last >= d.o[n - 1];
-    ctx.setLineDash([3, 3]); ctx.strokeStyle = lastUp ? P.up : P.down;
-    ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(plotW, ly); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle = lastUp ? P.up : P.down; ctx.fillRect(plotW, ly - 9, axisW, 18);
-    ctx.fillStyle = P.card; ctx.textBaseline = "middle"; ctx.font = "600 11px Inter, system-ui, sans-serif";
-    ctx.fillText(fmtPrice(last), plotW + 6, ly);
+    if (ly > padT - 4 && ly < vTop) {
+      ctx.setLineDash([3, 3]); ctx.strokeStyle = lastUp ? P.up : P.down;
+      ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(plotW, ly); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = lastUp ? P.up : P.down; ctx.fillRect(plotW, ly - 9, axisW, 18);
+      ctx.fillStyle = P.card; ctx.textBaseline = "middle"; ctx.font = "600 11px Inter, system-ui, sans-serif";
+      ctx.fillText(fmtPrice(last), plotW + 6, ly);
+    }
+    // legend (indicator values at the cursor or the latest bar)
+    var at = end - 1;
+    if (this.mx >= 0 && this.mx < plotW) at = Math.min(end - 1, Math.max(start, start + Math.floor(this.mx / bw)));
+    ctx.font = "11px Inter, system-ui, sans-serif"; ctx.textBaseline = "top";
+    var lgx = 8;
+    function leg(name, v, col) { if (v === undefined || isNaN(v)) return; var t = name + " " + fmtPrice(v); ctx.fillStyle = col; ctx.fillText(t, lgx, 5); lgx += ctx.measureText(t).width + 12; }
+    var chg = d.o[at] ? (d.c[at] / d.o[at] - 1) * 100 : 0;
+    var ohlc = (this.labelFn ? this.labelFn(d.t[at]) + "  " : "") + "O " + fmtPrice(d.o[at]) + "  H " + fmtPrice(d.h[at]) + "  L " + fmtPrice(d.l[at]) +
+      "  C " + fmtPrice(d.c[at]) + "  " + (chg >= 0 ? "+" : "") + chg.toFixed(2) + "%  Vol " + fmtVol(d.v[at]);
+    ctx.fillStyle = chg >= 0 ? P.up : P.down; ctx.fillText(ohlc, lgx, 5); lgx += ctx.measureText(ohlc).width + 16;
+    if (lgx < plotW - 120) {
+      if (this.ind.sma20) leg("SMA 20", sma20[at], P.accent);
+      if (sma50) leg("SMA 50", sma50[at], P.warn);
+      if (bbU) leg("BB", bbU[at], P.text), leg("/", bbL[at], P.text);
+      if (vw) leg("VWAP", vw[at], P.violet);
+    }
+    if (off > 0) {   // scrolled back in time
+      ctx.font = "600 11px Inter, system-ui, sans-serif"; ctx.fillStyle = P.text; ctx.textBaseline = "middle";
+      var ht = "← " + off + " bars back · double-click for live"; ctx.globalAlpha = 0.8; ctx.fillText(ht, plotW - ctx.measureText(ht).width - 8, vTop - 10); ctx.globalAlpha = 1;
+    }
     // crosshair
     if (this.mx >= 0 && this.mx < plotW) {
-      var k = Math.min(n - 1, Math.max(start, start + Math.floor(this.mx / bw)));
-      var cx = Math.round(xOf(k)) + 0.5, cy = Math.round(Math.min(this.my, H - timeH)) + 0.5;
+      var cx = Math.round(xOf(at)) + 0.5, cy = Math.round(Math.min(this.my, H - timeH)) + 0.5;
       ctx.strokeStyle = P.cross; ctx.setLineDash([4, 4]);
       ctx.beginPath(); ctx.moveTo(cx, padT); ctx.lineTo(cx, H - timeH); ctx.moveTo(0, cy); ctx.lineTo(plotW, cy); ctx.stroke(); ctx.setLineDash([]);
       if (cy < vTop) {
-        var pv = hi - (cy - padT) / priceH * (hi - lo);
+        var pvv = hi - (cy - padT) / priceH * (hi - lo);
         ctx.fillStyle = P.elev; ctx.fillRect(plotW, cy - 9, axisW, 18);
-        ctx.fillStyle = P.strong; ctx.font = "11px Inter, system-ui, sans-serif"; ctx.fillText(fmtPrice(pv), plotW + 6, cy);
+        ctx.fillStyle = P.strong; ctx.font = "11px Inter, system-ui, sans-serif"; ctx.textBaseline = "middle"; ctx.fillText(fmtPrice(pvv), plotW + 6, cy);
       }
-      var chg = d.o[k] ? (d.c[k] / d.o[k] - 1) * 100 : 0;
-      var txt = (this.labelFn ? this.labelFn(d.t[k]) + "  " : "") + "O " + fmtPrice(d.o[k]) + "  H " + fmtPrice(d.h[k]) + "  L " + fmtPrice(d.l[k]) +
-        "  C " + fmtPrice(d.c[k]) + "  " + (chg >= 0 ? "+" : "") + chg.toFixed(2) + "%  Vol " + fmtVol(d.v[k]);
-      ctx.font = "11px Inter, system-ui, sans-serif"; ctx.textBaseline = "top";
-      var tw = ctx.measureText(txt).width;
-      ctx.fillStyle = P.card; ctx.globalAlpha = 0.9; ctx.fillRect(4, 2, tw + 12, 18); ctx.globalAlpha = 1;
-      ctx.fillStyle = chg >= 0 ? P.up : P.down; ctx.fillText(txt, 10, 5);
+      var hit = this.markers && this.markers.index[d.t[at]];
+      if (hit && hit.lines.length) {   // which bots traded on the bar under the cursor
+        var lines = hit.lines.slice(0, 6).concat(hit.lines.length > 6 ? ["+" + (hit.lines.length - 6) + " more"] : []);
+        ctx.font = "11px Inter, system-ui, sans-serif"; ctx.textBaseline = "top";
+        var bwid = 0; lines.forEach(function (t) { bwid = Math.max(bwid, ctx.measureText(t).width); });
+        var bx = Math.min(cx + 10, plotW - bwid - 18), by = Math.max(padT, Math.min(cy + 10, vTop - lines.length * 15 - 12));
+        ctx.fillStyle = P.elev; ctx.globalAlpha = 0.96; ctx.fillRect(bx, by, bwid + 14, lines.length * 15 + 8); ctx.globalAlpha = 1;
+        ctx.strokeStyle = P.border; ctx.strokeRect(bx + 0.5, by + 0.5, bwid + 13, lines.length * 15 + 7);
+        lines.forEach(function (t, k) { ctx.fillStyle = /^(BUY|COVER)/.test(t) ? P.up : /^(SELL|SHORT)/.test(t) ? P.down : P.text; ctx.fillText(t, bx + 7, by + 5 + k * 15); });
+      }
     }
   };
+  function sma(c, w) {
+    var out = new Float64Array(c.length).fill(NaN), sum = 0;
+    for (var i = 0; i < c.length; i++) { sum += c[i]; if (i >= w) sum -= c[i - w]; if (i >= w - 1) out[i] = sum / w; }
+    return out;
+  }
+  function line(ctx, s, a, b, xOf, y) {
+    ctx.beginPath(); var on = false;
+    for (var i = a; i < b; i++) { if (isNaN(s[i])) { on = false; continue; } if (!on) { ctx.moveTo(xOf(i), y(s[i])); on = true; } else ctx.lineTo(xOf(i), y(s[i])); }
+    ctx.stroke();
+  }
+  function tri(ctx, x, yy, s, up, col) {
+    ctx.fillStyle = col; ctx.beginPath();
+    if (up) { ctx.moveTo(x, yy); ctx.lineTo(x - s, yy + s * 1.3); ctx.lineTo(x + s, yy + s * 1.3); }
+    else { ctx.moveTo(x, yy); ctx.lineTo(x - s, yy - s * 1.3); ctx.lineTo(x + s, yy - s * 1.3); }
+    ctx.closePath(); ctx.fill();
+  }
+  function label(ctx, n, x, yy, col) { ctx.font = "600 9px Inter, system-ui, sans-serif"; ctx.textBaseline = "middle"; ctx.fillStyle = col; var t = String(n); ctx.fillText(t, x - ctx.measureText(t).width / 2, yy); }
+  function hexA(col, a) {
+    if (/^#[0-9a-f]{6}$/i.test(col)) return "rgba(" + parseInt(col.slice(1, 3), 16) + "," + parseInt(col.slice(3, 5), 16) + "," + parseInt(col.slice(5, 7), 16) + "," + a + ")";
+    return col;
+  }
+
+  /* Equity curve for the bot dialog: the bot against the index, both rebased to the bot's starting cash. */
+  function equityChart(canvas, eq, idx, base) {
+    var f = fit(canvas), ctx = f.ctx, W = f.w, H = f.h, P = palette();
+    ctx.clearRect(0, 0, W, H);
+    if (!eq || eq.length < 2) { ctx.fillStyle = P.text; ctx.font = "12px Inter, system-ui, sans-serif"; ctx.fillText("The curve fills in as the bot trades.", 10, 20); return; }
+    var ix = idx && idx.length >= eq.length ? idx.slice(0, eq.length).map(function (v) { return base * v / idx[0]; }) : null;
+    var all = eq.concat(ix || []).concat([base]), hi = Math.max.apply(null, all), lo = Math.min.apply(null, all);
+    if (hi === lo) { hi += 1; lo -= 1; }
+    var left = 64, pad = 10, pw = W - left - pad, ph = H - 2 * pad;
+    var y = function (v) { return pad + (hi - v) / (hi - lo) * ph; }, x = function (k) { return left + k / (eq.length - 1) * pw; };
+    ctx.font = "11px Inter, system-ui, sans-serif"; ctx.textBaseline = "middle";
+    var step = niceStep(hi - lo, 4);
+    for (var g = Math.ceil(lo / step) * step; g <= hi; g += step) {
+      ctx.strokeStyle = P.grid; ctx.beginPath(); ctx.moveTo(left, Math.round(y(g)) + 0.5); ctx.lineTo(W - pad, Math.round(y(g)) + 0.5); ctx.stroke();
+      ctx.fillStyle = P.text; ctx.fillText("$" + fmtVol(g), 4, y(g));
+    }
+    ctx.strokeStyle = P.border; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(left, y(base)); ctx.lineTo(W - pad, y(base)); ctx.stroke(); ctx.setLineDash([]);
+    if (ix) { ctx.strokeStyle = P.text; ctx.globalAlpha = 0.6; ctx.lineWidth = 1.2; ctx.beginPath(); ix.forEach(function (v, k) { if (k) ctx.lineTo(x(k), y(v)); else ctx.moveTo(x(k), y(v)); }); ctx.stroke(); ctx.globalAlpha = 1; }
+    var col = eq[eq.length - 1] >= base ? P.up : P.down, grad = ctx.createLinearGradient(0, pad, 0, H - pad);
+    grad.addColorStop(0, hexA(col, 0.25)); grad.addColorStop(1, hexA(col, 0));
+    ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(x(0), y(base));
+    eq.forEach(function (v, k) { ctx.lineTo(x(k), y(v)); }); ctx.lineTo(x(eq.length - 1), y(base)); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = col; ctx.lineWidth = 1.8; ctx.beginPath(); eq.forEach(function (v, k) { if (k) ctx.lineTo(x(k), y(v)); else ctx.moveTo(x(k), y(v)); }); ctx.stroke(); ctx.lineWidth = 1;
+  }
+  T.equityChart = equityChart;
 
   function miniCandles(canvas, d, count) {
     var f = fit(canvas), ctx = f.ctx, W = f.w, H = f.h, P = palette();
@@ -4534,17 +5023,27 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
   var S = {
     sim: null, running: false, speed: 15, sel: -1, tf: "5m", filter: "all", sector: -1, query: "",
     feed: "news", acc: 0, lastT: 0, lastList: 0, lastMinis: 0, minis: [], newsSeen: 0, filtered: [], heldCount: null,
-    tradeSeen: {}, cfg: { mult: 1, generations: 6, daysPerGen: 10, seed: 20270104, fitness: "return", detailBudget: 8000000, startCash: 100000 }, dirtyBots: true
+    tradeSeen: {}, cfg: { mult: 1, generations: 6, daysPerGen: 10, seed: 20270104, fitness: "return", detailBudget: 8000000, startCash: 100000, maxSymbols: 0 }, dirtyBots: true,
+    lastTop: 0, chartSig: "", minisBar: -1, background: store("tb-background") !== "off", botOrder: "", prevPx: null
   };
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   var chart = new T.CandleChart($("mainChart"));
+  (function chartPrefs() {
+    var saved = null;
+    try { saved = JSON.parse(store("tb-chart") || "null"); } catch (e) { saved = null; }
+    if (saved) { if (saved.type) chart.type = saved.type; if (saved.ind) for (var k in chart.ind) if (k in saved.ind) chart.ind[k] = !!saved.ind[k]; }
+  })();
+  function saveChartPrefs() { store("tb-chart", JSON.stringify({ type: chart.type, ind: chart.ind })); }
+  chart.onView = function (v) { $("btnLive").hidden = v.live && !v.zoomed; };
 
   /* ---------- setup ---------- */
   function build(cfg) {
     S.running = false; setPlay();
     S.sim = new T.Sim(cfg);
     S.cfg = cfg;
-    S.newsSeen = 0; S.tradeSeen = {}; S.dirtyBots = true; S.heldCount = null;
+    S.newsSeen = 0; S.tradeSeen = {}; S.dirtyBots = true; S.heldCount = null; S.chartSig = ""; S.minisBar = -1; S.botOrder = ""; S.prevPx = null;
+    hideToast();
     clear($("feedNews")); clear($("feedTrades"));
     S.sim.on(onSimEvent);
     if (T.onSimBuilt) T.onSimBuilt(S.sim);
@@ -4563,6 +5062,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       var s = d.summary, next = d.final || S.sim.stopRequested ? " Run complete." : " Breeding generation " + (s.gen + 1) + ": " + S.sim.expectedSize(s.gen + 1) + " bots.";
       setStatus("Generation " + s.gen + " finished. Avg " + pct(s.avgReturn) + ", best " + s.bestBot + " " + pct(s.bestReturn) + ", SIM 500 " + pct(s.indexReturn) + "." + next);
       S.dirtyBots = true; S.tradeSeen = {};
+      if (!d.final && !S.sim.stopRequested) genToast(d);
     } else if (type === "trimmed") {
       S.trimmed = d;
     } else if (type === "done") {
@@ -4582,28 +5082,52 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
   }
 
   /* ---------- main loop ---------- */
+  /* Steps the simulation for up to `budget` ms at the chosen speed. */
+  function advance(dt, budget) {
+    var t0 = performance.now();
+    if (S.speed === 0) {
+      while (performance.now() - t0 < budget && !S.sim.done) S.sim.step();
+    } else {
+      S.acc += dt * S.speed;
+      while (S.acc >= 1 && !S.sim.done && performance.now() - t0 < budget + 12) { S.sim.step(); S.acc -= 1; }
+      if (S.acc > 3) S.acc = 0;
+    }
+  }
   function frame(t) {
     requestAnimationFrame(frame);
-    if (!S.sim) return;
+    if (!S.sim || document.hidden) return;
     var dt = S.lastT ? Math.min(0.25, (t - S.lastT) / 1000) : 0;
     S.lastT = t;
     if (S.running && !S.sim.done) {
-      var t0 = performance.now();
-      if (S.speed === 0) {
-        while (performance.now() - t0 < 28 && !S.sim.done) S.sim.step();
-      } else {
-        S.acc += dt * S.speed;
-        while (S.acc >= 1 && !S.sim.done && performance.now() - t0 < 40) { S.sim.step(); S.acc -= 1; }
-        if (S.acc > 3) S.acc = 0;
-      }
+      // Max speed gives the simulation most of each frame but always leaves time to draw (smooth on 60 and 120 Hz screens)
+      advance(dt, S.speed === 0 ? (S.frameMs > 14 ? 24 : 12) : 28);
       renderAll(false);
     }
+    S.frameMs = S.frameMs ? S.frameMs * 0.9 + 0.1 * Math.min(100, dt * 1000) : 16;
   }
+  /* Hidden tab: browsers stop animation frames and slow timers, so a message-channel loop keeps the run going without drawing. */
+  var bg = { ch: null, on: false, last: 0 };
+  function bgTick() {
+    if (!bg.on) return;
+    if (!document.hidden || !S.running || !S.sim || S.sim.done) { bg.on = false; return; }
+    var now = performance.now(), dt = Math.min(1, (now - bg.last) / 1000); bg.last = now;
+    advance(dt, 45);
+    bg.ch.port2.postMessage(0);
+  }
+  function startBackground() {
+    if (bg.on || !S.background || typeof MessageChannel === "undefined") return;
+    if (!bg.ch) { bg.ch = new MessageChannel(); bg.ch.port1.onmessage = bgTick; }
+    bg.on = true; bg.last = performance.now(); bg.ch.port2.postMessage(0);
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) { if (S.running) startBackground(); }
+    else { bg.on = false; S.lastT = 0; if (S.sim) { S.dirtyBots = true; renderAll(true); } }
+  });
 
   function renderAll(force) {
     var now = performance.now();
-    renderTop();
-    renderChart();
+    if (force || now - S.lastTop > 90) { S.lastTop = now; renderTop(); }
+    renderChart(force);
     if (force || now - S.lastList > 350) {
       S.lastList = now;
       if (S.filter === "gain" || S.filter === "lose" || S.filter === "held") refilter();
@@ -4611,14 +5135,15 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       renderBots();
       renderFeeds();
     }
-    if (force || now - S.lastMinis > 2500) { S.lastMinis = now; pickMinis(); }
-    renderMinis();
+    if (force || now - S.lastMinis > 2500) { S.lastMinis = now; pickMinis(); S.minisBar = -1; }
+    if (force || (S.minisBar !== S.sim.market.gBar && now - (S.lastMiniDraw || 0) > 240)) { S.lastMiniDraw = now; S.minisBar = S.sim.market.gBar; renderMinis(); }
   }
 
   /* ---------- top bar ---------- */
   function renderTop() {
     var m = S.sim.market, ch = m.indexChangePct();
-    $("idxVal").textContent = T.fmtPrice(m.index);
+    var iv = $("idxVal"), txt = T.fmtPrice(m.index);
+    if (iv.textContent !== txt) { if (S.lastIdx !== undefined) flash(iv, m.index > S.lastIdx); iv.textContent = txt; S.lastIdx = m.index; }
     $("vixVal").textContent = m.vix().toFixed(2);
     var c = $("idxChg"); c.textContent = pct(ch); c.className = "num chg " + cls(ch);
     var rg = $("regime"); rg.textContent = m.REGIMES[m.regime].name; rg.className = "badge " + m.REGIMES[m.regime].name;
@@ -4636,10 +5161,15 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     if (S.tf === "5m") { var b = ((t % m.BARS_PER_DAY) + m.BARS_PER_DAY) % m.BARS_PER_DAY, mins = 570 + b * 5; var h = Math.floor(mins / 60), mm = mins % 60; return (h > 12 ? h - 12 : h) + ":" + (mm < 10 ? "0" : "") + mm; }
     return m.dateStr(t).slice(5);
   }
-  function renderChart() {
-    var m = S.sim.market, i = S.sel, d = m.candles(i, S.tf, S.tf === "5m" ? m.INTRA : m.DAILY);
-    if (S.tf === "5m" && d.c.length < 2) d = m.candles(i, "1D", m.DAILY);
-    chart.set(d, tfLabel);
+  function renderChart(force) {
+    var m = S.sim.market, i = S.sel, sig = i + "|" + S.tf + "|" + m.gBar + "|" + S.sim.gen;
+    if (!force && sig === S.chartSig) return;
+    S.chartSig = sig;
+    var d = m.candles(i, S.tf, S.tf === "5m" ? m.INTRA : m.DAILY), daily = S.tf !== "5m";
+    if (S.tf === "5m" && d.c.length < 2) { d = m.candles(i, "1D", m.DAILY); daily = true; }
+    if (!daily) d.bpd = m.BARS_PER_DAY;
+    $("indVwap").disabled = daily;
+    chart.set(d, tfLabel, i >= 0 ? tradeMarkers(i, d, daily) : null);
     var last, chg, hi, lo, vol;
     if (i < 0) {
       $("chartSym").textContent = "SIM 500"; $("chartName").textContent = "Cap-weighted index of S&P 500 members";
@@ -4672,6 +5202,29 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       f("fRange", T.fmtPrice(m.loRange[i]) + " – " + T.fmtPrice(m.hiRange[i]));
       f("fBeta", m.beta[i].toFixed(2));
     }
+  }
+
+  /* Bot trades on one symbol, keyed by the chart's bar time, for the chart's markers and hover box. */
+  function tradeMarkers(i, d, daily) {
+    var m = S.sim.market, sym = m.sym[i], BPD = m.BARS_PER_DAY, first = d.t.length ? d.t[0] : 0, idx = Object.create(null), count = 0;
+    S.sim.bots.forEach(function (b) {
+      for (var j = b.trades.length - 1; j >= 0; j--) {
+        var t = b.trades[j], key = daily ? t.day : t.day * BPD + t.bar;
+        if (key < first) break;
+        if (t.sym !== sym) continue;
+        var mk = idx[key] || (idx[key] = { buy: 0, sell: 0, lines: [] }), buy = t.side === "BUY" || t.side === "COVER";
+        if (buy) mk.buy++; else mk.sell++;
+        mk.lines.push(t.side + " " + t.qty.toLocaleString() + " @ " + T.fmtPrice(t.px) + " · " + b.name + (t.pnl !== null ? " · " + signed$(t.pnl) : ""));
+        count++;
+      }
+    });
+    return { index: idx, length: count };
+  }
+
+  /* Brief colour pulse when a number changes (green up, red down). */
+  function flash(node, up) {
+    if (reduceMotion || !node.animate || (S.running && S.speed === 0 && node !== $("idxVal"))) return;   // at Max speed every price moves every update: too busy
+    node.animate([{ backgroundColor: up ? "var(--up-weak)" : "var(--down-weak)" }, { backgroundColor: "transparent" }], { duration: 600, easing: "ease-out" });
   }
 
   /* ---------- markets list (virtualized) ---------- */
@@ -4721,7 +5274,9 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       row.hidden = false; row._idx = i;
       row.style.top = ((first + k) * ROW) + "px";
       row._s.textContent = m.sym[i]; row._n.textContent = m.name[i];
-      row._p.textContent = T.fmtPrice(m.price[i]);
+      var ptxt = T.fmtPrice(m.price[i]);
+      if (row._p.textContent !== ptxt) { if (row._last !== undefined && row._lastIdx === i) flash(row._p, m.price[i] > row._last); row._p.textContent = ptxt; }
+      row._last = m.price[i]; row._lastIdx = i;
       var ch = m.changePct(i); row._c.textContent = pct(ch); row._c.className = "c num " + cls(ch);
       row.classList.toggle("sel", i === S.sel);
       row.setAttribute("aria-selected", i === S.sel ? "true" : "false");
@@ -4729,8 +5284,8 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
   }
 
   function select(i) {
-    S.sel = i;
-    renderChart(); renderList(); renderMinis();
+    S.sel = i; chart.reset();
+    renderChart(true); renderList(); renderMinis();
     if (window.matchMedia("(max-width: 900px)").matches) showPanel("pChart");
   }
 
@@ -4786,26 +5341,46 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     bots.forEach(function (b) { b.markEquity(m); });
     bots.sort(function (a, b) { return b.equity - a.equity; });
     if (S.dirtyBots) {
-      clear(list); botRows = {};
+      clear(list); botRows = {}; S.botOrder = "";
       bots.forEach(function (b) {
         var li = el("li"), btn = el("button", "bot-row"); btn.type = "button";
-        var left = el("span", "lft"), nm = el("span", "nm"), rk = el("span", "rank num"), nmT = el("span"), st = el("span", "st");
-        nm.appendChild(rk); nm.appendChild(nmT); left.appendChild(nm); left.appendChild(st);
+        var left = el("span", "lft"), nm = el("span", "nm"), rk = el("span", "rank num"), nmT = el("span"), st = el("span", "st"), mv = el("span", "mv");
+        mv.setAttribute("aria-hidden", "true");
+        nm.appendChild(rk); nm.appendChild(nmT); nm.appendChild(mv); left.appendChild(nm); left.appendChild(st);
         var cv = el("canvas"); cv.setAttribute("aria-hidden", "true");
         var pl = el("span", "pl num"), plA = el("span"), plP = el("small");
         pl.appendChild(plA); pl.appendChild(plP);
         btn.appendChild(left); btn.appendChild(cv); btn.appendChild(pl);
         btn.addEventListener("click", function () { showBot(b); });
         li.appendChild(btn);
-        botRows[b.id] = { li: li, btn: btn, rk: rk, nm: nmT, st: st, cv: cv, plA: plA, plP: plP, pl: pl };
+        botRows[b.id] = { li: li, btn: btn, rk: rk, nm: nmT, st: st, cv: cv, plA: plA, plP: plP, pl: pl, mv: mv };
         list.appendChild(li);
       });
       S.dirtyBots = false;
     }
-    var start = sim.cfg.startCash, up = 0, sum = 0;
+    var start = sim.cfg.startCash, up = 0, sum = 0, order = bots.map(function (b) { return b.id; }).join(",");
+    if (order !== S.botOrder) {
+      // FLIP: remember where rows were, reorder, then slide them from the old spot to the new one
+      var animate = !reduceMotion && S.botOrder && bots.length <= 160, before = {};
+      if (animate) bots.forEach(function (b) { var r = botRows[b.id]; if (r) before[b.id] = r.li.offsetTop; });
+      var frag = document.createDocumentFragment();
+      bots.forEach(function (b, k) {
+        var r = botRows[b.id]; if (!r) return;
+        if (r.rank !== undefined && r.rank !== k) { r.mv.textContent = k < r.rank ? "▲" : "▼"; r.mv.className = "mv " + (k < r.rank ? "up" : "down"); r.mvAt = performance.now(); }
+        r.rank = k; frag.appendChild(r.li);
+      });
+      list.appendChild(frag);
+      if (animate) bots.forEach(function (b) {
+        var r = botRows[b.id]; if (!r || before[b.id] === undefined) return;
+        var dy = before[b.id] - r.li.offsetTop;
+        if (dy && Math.abs(dy) < 2000 && r.li.animate) r.li.animate([{ transform: "translateY(" + dy + "px)" }, { transform: "none" }], { duration: 240, easing: "cubic-bezier(.2,.7,.2,1)" });
+      });
+      S.botOrder = order;
+    }
+    var vTop = list.scrollTop, vBot = vTop + (list.clientHeight || 600), nowT = performance.now();
     bots.forEach(function (b, k) {
       var r = botRows[b.id]; if (!r) return;
-      list.appendChild(r.li);
+      if (r.mvAt && nowT - r.mvAt > 2400) { r.mv.textContent = ""; r.mvAt = 0; }
       var pnl = b.equity - start, ret = pnl / start;
       sum += pnl; if (pnl > 0) up++;
       r.rk.textContent = k + 1; r.nm.textContent = b.name;
@@ -4814,7 +5389,8 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       r.plA.textContent = signed$(pnl); r.plP.textContent = pct(ret);
       r.pl.className = "pl num " + cls(pnl);
       r.btn.setAttribute("aria-label", b.name + ", P/L " + signed$(pnl) + " (" + pct(ret) + ")");
-      T.sparkline(r.cv, b.intraCurve.concat([b.equity]), start);
+      var y0 = r.li.offsetTop;
+      if (y0 + 40 >= vTop && y0 <= vBot) T.sparkline(r.cv, b.intraCurve.concat([b.equity]), start);   // only rows on screen
     });
     var avg = bots.length ? sum / bots.length : 0;
     var a = $("bsAvg"); a.textContent = signed$(avg); a.className = "num strong " + cls(avg);
@@ -4831,6 +5407,15 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     var meta = el("p", "hint", "Born in generation " + b.gen + (b.parents.length ? " to " + b.parents.join(" and ") : " (random genome)") +
       (b.age ? ". Survived " + b.age + " breeding round" + (b.age > 1 ? "s" : "") : "") + ".");
     body.appendChild(meta);
+    // equity against the index, plus trait chips
+    var eqWrap = el("div", "eq-wrap"), eqCv = el("canvas", "bot-equity");
+    eqCv.setAttribute("role", "img"); eqCv.setAttribute("aria-label", b.name + " equity " + signed$(s.pnl) + " (" + pct(s.ret) + "), with SIM 500 for comparison");
+    eqWrap.appendChild(eqCv);
+    var lg = el("div", "eq-legend"); lg.appendChild(el("span", "sw bot")); lg.appendChild(el("span", null, b.name)); lg.appendChild(el("span", "sw idx")); lg.appendChild(el("span", null, "SIM 500 (rebased)"));
+    eqWrap.appendChild(lg); body.appendChild(eqWrap);
+    var chips = el("div", "chips");
+    T.TRAITS.forEach(function (t) { var cp = el("span", "chip chr" + t.chr, b.traits[t.key]); cp.title = t.name + ": " + t.effect; chips.appendChild(cp); });
+    body.appendChild(chips);
     var k = el("div", "kpis");
     [["P/L", signed$(s.pnl)], ["Return", pct(s.ret)], ["vs SIM 500", pct(s.excessVsIndex)], ["Max drawdown", pct(-s.maxDD)],
       ["Sharpe", s.sharpe.toFixed(2)], ["Sortino", s.sortino.toFixed(2)], ["Alpha (ann.)", pct(s.alpha, 1)], ["Beta", s.beta.toFixed(2)],
@@ -4859,6 +5444,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       (gps.length ? "Grandparents: " + gps.join(", ") + ". " : "") +
       (kids.length ? "Children: " + kids.map(function (x) { return x.name; }).join(", ") + ". " : "No children yet. ") +
       "Inbreeding coefficient " + b.inbreeding.toFixed(3) + (b.inbreeding >= 0.25 ? " (as close as full siblings' children)" : b.inbreeding >= 0.0625 ? " (as close as first cousins' children or closer)" : "") + "."));
+    body.appendChild(familyTree(b, pa, pb, kids));
     body.appendChild(el("h3", null, "Traits"));
     var traitTable = table(["Chromosome", "Trait", "Genotype", "Shows as", "Effect"], T.TRAITS.map(function (t) {
       return [t.chr + " " + T.genetics.CHR_NAMES[t.chr], t.name, T.genetics.show(t, b.genotype[t.key]), b.traits[t.key], t.effect];
@@ -4883,7 +5469,173 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     });
     body.appendChild(table(["Time", "Side", "Symbol", "Qty", "Price", "Realized", "Reason"], tr, 5));
     $("dlgBot").showModal();
+    requestAnimationFrame(function () { T.equityChart(eqCv, b.intraCurve.slice(1).concat([b.equity]), b.idxCurve.concat([m.index]), b.startCash); });
   }
+
+  /* Family tree: grandparents, parents, the bot, its children. Each card opens that bot if it is still in the box. */
+  var SVGNS = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs, text) { var e = document.createElementNS(SVGNS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); if (text !== undefined) e.textContent = text; return e; }
+  function familyTree(b, pa, pb, kids) {
+    var all = S.sim.allBots, rows = [], live = {};
+    S.sim.bots.forEach(function (x) { live[x.id] = x; });
+    var gp = [];
+    [pa, pb].forEach(function (p) { if (!p) return; p.parentIds.forEach(function (q) { if (all[q]) gp.push({ bot: all[q], child: p.id }); }); });
+    if (gp.length) rows.push(gp);
+    if (pa) rows.push([{ bot: pa }, { bot: pb }].filter(function (x) { return x.bot; }));
+    rows.push([{ bot: b, self: true }]);
+    if (kids.length) rows.push(kids.slice(0, 8).map(function (x) { return { bot: x }; }));
+    var cw = 138, ch = 40, gapY = 30, widest = Math.max.apply(null, rows.map(function (r) { return r.length; }));
+    var W = Math.max(600, widest * (cw + 14) + 14), H = rows.length * (ch + gapY) - gapY + 8, pos = {};
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, class: "tree", role: "img", "aria-label": "Family tree of " + b.name });
+    rows.forEach(function (row, r) {
+      var n = row.length, gap = Math.min(18, (W - n * cw) / Math.max(1, n + 1)), total = n * cw + (n - 1) * gap, x0 = (W - total) / 2;
+      row.forEach(function (it, k) { pos[it.bot.id + ":" + r] = { x: x0 + k * (cw + gap), y: 4 + r * (ch + gapY), it: it }; });
+    });
+    var g = svgEl("g", { class: "links" });
+    rows.forEach(function (row, r) {
+      if (!r) return;
+      row.forEach(function (it) {
+        var me = pos[it.bot.id + ":" + r];
+        it.bot.parentIds.forEach(function (q) {
+          var par = pos[q + ":" + (r - 1)]; if (!par) return;
+          var x1 = par.x + cw / 2, y1 = par.y + ch, x2 = me.x + cw / 2, y2 = me.y, my = (y1 + y2) / 2;
+          g.appendChild(svgEl("path", { d: "M" + x1 + " " + y1 + " C" + x1 + " " + my + " " + x2 + " " + my + " " + x2 + " " + y2 }));
+        });
+      });
+    });
+    svg.appendChild(g);
+    Object.keys(pos).forEach(function (key) {
+      var p = pos[key], x = p.it.bot, alive = live[x.id], ret = typeof x.lastReturn === "number" ? x.lastReturn : null;
+      var node = svgEl("g", { class: "node" + (p.it.self ? " self" : "") + (alive ? " alive" : ""), transform: "translate(" + p.x + "," + p.y + ")" });
+      node.appendChild(svgEl("rect", { width: cw, height: ch, rx: 6 }));
+      node.appendChild(svgEl("text", { x: 8, y: 16, class: "nm" }, x.name.length > 18 ? x.name.slice(0, 17) + "…" : x.name));
+      node.appendChild(svgEl("text", { x: 8, y: 31, class: "sub" + (ret !== null ? ret >= 0 ? " up" : " down" : "") }, x.house + " · G" + x.gen + (ret !== null ? " · " + pct(ret, 1) : "")));
+      if (alive && !p.it.self) {
+        node.setAttribute("tabindex", "0"); node.setAttribute("role", "button"); node.setAttribute("aria-label", "Open " + x.name);
+        var open = function () { showBot(alive); };
+        node.addEventListener("click", open);
+        node.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
+      }
+      svg.appendChild(node);
+    });
+    var wrap = el("div", "tree-wrap"); wrap.appendChild(svg);
+    return wrap;
+  }
+
+  /* ---------- generation toast ---------- */
+  var toastTimer = 0;
+  function hideToast() { var t = $("genToast"); if (t) { t.classList.remove("show"); t.hidden = true; } clearTimeout(toastTimer); }
+  function genToast(d) {
+    var s = d.summary, box = $("genToast"), start = S.sim.cfg.startCash, rows = (d.rows && d.rows.bots || []).slice().sort(function (a, b) { return b.returnPct - a.returnPct; });
+    clear(box);
+    var head = el("div", "toast-head");
+    head.appendChild(el("b", null, "Generation " + s.gen + " finished"));
+    var x = el("button", "btn icon small", "×"); x.type = "button"; x.setAttribute("aria-label", "Dismiss"); x.addEventListener("click", hideToast);
+    head.appendChild(x); box.appendChild(head);
+    var pod = el("ol", "podium");
+    rows.slice(0, 3).forEach(function (r, k) {
+      var li = el("li", "p" + (k + 1)); li.appendChild(el("span", "place", String(k + 1))); li.appendChild(el("span", "who", r.bot));
+      li.appendChild(el("span", "num " + cls(r.returnPct), pct(r.returnPct))); pod.appendChild(li);
+    });
+    box.appendChild(pod);
+    var st = el("div", "toast-stats");
+    [["Average", pct(s.avgReturn), s.avgReturn], ["SIM 500", pct(s.indexReturn), s.indexReturn], ["In profit", s.profitableBots + " / " + s.bots], ["Next", S.sim.expectedSize(s.gen + 1) + " bots"]].forEach(function (q) {
+      var dv = el("div"); dv.appendChild(el("span", "k", q[0])); dv.appendChild(el("span", "num strong " + (q[2] !== undefined ? cls(q[2]) : ""), q[1])); st.appendChild(dv);
+    });
+    box.appendChild(st);
+    box.appendChild(el("p", "hint", "Breeding: " + S.sim.ruleName + "."));
+    var act = el("div", "toast-actions"), rep = el("button", "btn small", "Open report");
+    rep.type = "button"; rep.addEventListener("click", function () { hideToast(); showReport(S.sim.report()); });
+    act.appendChild(rep); box.appendChild(act);
+    box.hidden = false;
+    requestAnimationFrame(function () { box.classList.add("show"); });
+    clearTimeout(toastTimer);
+    var arm = function () { toastTimer = setTimeout(hideToast, 7000); };
+    box.onmouseenter = function () { clearTimeout(toastTimer); }; box.onmouseleave = arm; arm();
+  }
+
+  /* ---------- command palette (⌘K / Ctrl+K) and shortcuts ---------- */
+  var isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent), MOD = isMac ? "⌘" : "Ctrl+";
+  function commands() {
+    var list = [
+      { name: S.running ? "Pause" : "Start / resume", key: "Space", run: function () { $("btnPlay").click(); } },
+      { name: "New run…", key: "N", run: function () { $("btnNew").click(); } },
+      { name: "Finish the run…", key: "F", run: function () { $("btnFinish").click(); } },
+      { name: "Report and data", key: "D", run: function () { $("btnData").click(); } },
+      { name: "Trading data bot (pull requests)", key: "B", run: function () { $("btnDataBot").click(); } },
+      { name: "Final training mode on / off", key: "M", run: function () { $("modeSwitch").click(); } },
+      { name: "Toggle light / dark theme", key: "T", run: function () { $("btnTheme").click(); } },
+      { name: "Search symbols", key: "/", run: function () { $("search").focus(); } },
+      { name: "Chart: candles", key: "C", run: function () { setChartType("candle"); } },
+      { name: "Chart: line", run: function () { setChartType("line"); } },
+      { name: "Chart: area", run: function () { setChartType("area"); } },
+      { name: "Chart: zoom in", key: "+", run: function () { chart.zoomBy(0.8, null); } },
+      { name: "Chart: zoom out", key: "−", run: function () { chart.zoomBy(1.25, null); } },
+      { name: "Chart: back to live", key: "0", run: function () { chart.reset(); } },
+      { name: "Chart: 5-minute bars", run: function () { document.querySelector('[data-tf="5m"]').click(); } },
+      { name: "Chart: daily bars", run: function () { document.querySelector('[data-tf="1D"]').click(); } },
+      { name: "Show SIM 500 index", key: "I", run: function () { select(-1); } }
+    ];
+    ["sma20", "sma50", "bb", "vwap"].forEach(function (k) { list.push({ name: "Indicator: " + IND_NAMES[k] + (chart.ind[k] ? " (on)" : " (off)"), run: function () { toggleInd(k); } }); });
+    [["1", "1 bar/s"], ["2", "4 bars/s"], ["3", "15 bars/s"], ["4", "60 bars/s"], ["5", "Max"]].forEach(function (q, k) {
+      list.push({ name: "Speed: " + q[1], key: q[0], run: function () { setSpeed(k); } });
+    });
+    list.push({ name: "Keyboard shortcuts", key: "?", run: function () { openPalette(""); } });
+    return list;
+  }
+  var IND_NAMES = { sma20: "SMA 20", sma50: "SMA 50", bb: "Bollinger bands", vwap: "VWAP" };
+  function setSpeed(k) { var sel = $("speed"); sel.selectedIndex = k; sel.dispatchEvent(new Event("change")); setStatus("Speed: " + sel.options[k].text + "."); }
+  function setChartType(t) {
+    chart.type = t; saveChartPrefs(); chart.req();
+    document.querySelectorAll("[data-ctype]").forEach(function (b) { var on = b.dataset.ctype === t; b.classList.toggle("active", on); b.setAttribute("aria-pressed", on ? "true" : "false"); });
+  }
+  function toggleInd(k, force) {
+    chart.ind[k] = force === undefined ? !chart.ind[k] : force; saveChartPrefs(); chart.req();
+    var b = document.querySelector('[data-ind="' + k + '"]'); if (b) b.setAttribute("aria-pressed", chart.ind[k] ? "true" : "false");
+  }
+  function paletteItems(q) {
+    q = q.trim().toLowerCase();
+    var out = [], m = S.sim.market;
+    commands().forEach(function (c) { if (!q || c.name.toLowerCase().indexOf(q) >= 0) out.push({ label: c.name, hint: c.key || "", run: c.run, kind: "Action" }); });
+    if (q) {
+      var Q = q.toUpperCase(), hits = 0;
+      for (var i = 0; i < m.n && hits < 8; i++) if (m.sym[i] === Q || (m.sym[i].indexOf(Q) === 0 && Q.length > 0)) { (function (j) { out.push({ label: m.sym[j] + " · " + m.name[j], hint: T.fmtPrice(m.price[j]) + " " + pct(m.changePct(j)), run: function () { select(j); }, kind: "Symbol" }); })(i); hits++; }
+      for (i = 0; i < m.n && hits < 12; i++) if (m.sym[i].indexOf(Q) !== 0 && m.name[i].toLowerCase().indexOf(q) >= 0) { (function (j) { out.push({ label: m.sym[j] + " · " + m.name[j], hint: T.fmtPrice(m.price[j]), run: function () { select(j); }, kind: "Symbol" }); })(i); hits++; }
+      S.sim.bots.filter(function (b) { return b.name.toLowerCase().indexOf(q) >= 0 || b.house.toLowerCase().indexOf(q) >= 0; }).slice(0, 8).forEach(function (b) {
+        out.push({ label: b.name + " · " + b.house + " · " + b.style, hint: pct(b.equity / b.startCash - 1), run: function () { showBot(b); }, kind: "Bot" });
+      });
+    }
+    return out.slice(0, 40);
+  }
+  var pal = { items: [], at: 0 };
+  function openPalette(initial) {
+    var d = $("dlgPalette"), inp = $("palInput");
+    inp.value = initial || ""; renderPalette();
+    if (!d.open) d.showModal();
+    inp.focus();
+  }
+  function renderPalette() {
+    var list = $("palList"); clear(list);
+    pal.items = paletteItems($("palInput").value); pal.at = Math.min(pal.at, Math.max(0, pal.items.length - 1));
+    pal.items.forEach(function (it, k) {
+      var li = el("li", "pal-item" + (k === pal.at ? " on" : "")); li.setAttribute("role", "option"); li.id = "pal" + k;
+      li.setAttribute("aria-selected", k === pal.at ? "true" : "false");
+      li.appendChild(el("span", "pal-kind", it.kind)); li.appendChild(el("span", "pal-label", it.label));
+      if (it.hint) li.appendChild(el(it.kind === "Action" ? "kbd" : "span", it.kind === "Action" ? null : "num muted", it.hint));
+      li.addEventListener("mousemove", function () { if (pal.at !== k) { pal.at = k; markPal(); } });
+      li.addEventListener("click", function () { runPal(k); });
+      list.appendChild(li);
+    });
+    if (!pal.items.length) list.appendChild(el("li", "pal-empty", "Nothing matches. Try a symbol (AAPL), a bot name or an action (zoom, speed, report)."));
+    $("palInput").setAttribute("aria-activedescendant", pal.items.length ? "pal" + pal.at : "");
+  }
+  function markPal() {
+    Array.prototype.forEach.call($("palList").children, function (li, k) { li.classList.toggle("on", k === pal.at); li.setAttribute("aria-selected", k === pal.at ? "true" : "false"); });
+    var on = $("pal" + pal.at); if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest" });
+    $("palInput").setAttribute("aria-activedescendant", "pal" + pal.at);
+  }
+  function runPal(k) { var it = pal.items[k]; if (!it) return; $("dlgPalette").close(); setTimeout(it.run, 0); }
+
   function barLabel(b) { var mins = 570 + b * 5, h = Math.floor(mins / 60), mm = mins % 60; return (h > 12 ? h - 12 : h) + ":" + (mm < 10 ? "0" : "") + mm; }
 
   function table(heads, rows, colorCol) {
@@ -5147,8 +5899,32 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     $("speed").addEventListener("change", function () { S.speed = +this.value; S.acc = 0; });
     $("btnTheme").addEventListener("click", function () {
       var t = document.documentElement.dataset.theme === "light" ? "dark" : "light";
-      document.documentElement.dataset.theme = t; store("tb-theme", t); renderAll(true);
+      store("tb-theme", t); applyTheme(); setStatus("Theme: " + t + ". It stays " + t + " until you switch back; double-click the button to follow your system again.");
     });
+    $("btnTheme").addEventListener("dblclick", function () { store("tb-theme", "auto"); applyTheme(); setStatus("Theme follows your system's light or dark setting."); });
+    if (window.matchMedia) {
+      var mq = window.matchMedia("(prefers-color-scheme: light)");
+      var onSys = function () { applyTheme(); };
+      if (mq.addEventListener) mq.addEventListener("change", onSys); else if (mq.addListener) mq.addListener(onSys);
+    }
+    // chart toolbar
+    document.querySelectorAll("[data-ctype]").forEach(function (b) { b.addEventListener("click", function () { setChartType(b.dataset.ctype); }); });
+    document.querySelectorAll("[data-ind]").forEach(function (b) { b.addEventListener("click", function () { toggleInd(b.dataset.ind); }); });
+    setChartType(chart.type); Object.keys(chart.ind).forEach(function (k) { toggleInd(k, chart.ind[k]); });
+    $("btnZoomIn").addEventListener("click", function () { chart.zoomBy(0.8, null); });
+    $("btnZoomOut").addEventListener("click", function () { chart.zoomBy(1.25, null); });
+    $("btnLive").addEventListener("click", function () { chart.reset(); });
+    $("botList").addEventListener("scroll", function () { clearTimeout(S.botScroll); S.botScroll = setTimeout(renderBots, 60); }, { passive: true });
+    // command palette
+    $("palInput").addEventListener("input", function () { pal.at = 0; renderPalette(); });
+    $("palInput").addEventListener("keydown", function (e) {
+      if (e.key === "ArrowDown") { e.preventDefault(); pal.at = Math.min(pal.items.length - 1, pal.at + 1); markPal(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); pal.at = Math.max(0, pal.at - 1); markPal(); }
+      else if (e.key === "Enter") { e.preventDefault(); runPal(pal.at); }
+    });
+    $("btnPalette").addEventListener("click", function () { openPalette(""); });
+    $("btnPalette").setAttribute("title", "Commands and search (" + MOD + "K)");
+    $("palKbd").textContent = MOD + "K";
     $("search").addEventListener("input", function () { S.query = this.value; refilter(); $("mList").scrollTop = 0; renderList(); });
     $("sectorSel").addEventListener("change", function () { S.sector = +this.value; refilter(); $("mList").scrollTop = 0; renderList(); });
     $("mList").addEventListener("scroll", renderList, { passive: true });
@@ -5176,6 +5952,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       $("inBudget").value = String(S.cfg.detailBudget || 8000000); $("inDays").value = S.cfg.daysPerGen; $("inCash").value = S.cfg.startCash || 100000; $("inSeed").value = S.cfg.seed; $("inFit").value = S.cfg.fitness;
       $("inMut").value = String(S.cfg.mutation || 1); loadBreeding(S.cfg);
       $("inSamples").value = String(S.cfg.samplesPerDay !== undefined ? S.cfg.samplesPerDay : 150);
+      $("inSymbols").value = String(S.cfg.maxSymbols || 0); $("inBackground").checked = S.background;
       $("newErr").hidden = true;
       $("dlgNew").showModal();
     });
@@ -5192,8 +5969,9 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
       var br = readBreeding();
       if (!bad && br.error) bad = br.error;
       if (bad) { e.preventDefault(); err.textContent = bad; err.hidden = false; return; }
+      S.background = $("inBackground").checked; store("tb-background", S.background ? "on" : "off");
       build({ mult: mult, generations: Math.round(g), forever: forever, daysPerGen: Math.round(d), seed: Math.round(s), fitness: $("inFit").value,
-        detailBudget: +$("inBudget").value, startCash: Math.round(cash * 100) / 100, mutation: +$("inMut").value, samplesPerDay: +$("inSamples").value, breeding: br.breeding, breedPool: br.breedPool,
+        maxSymbols: +$("inSymbols").value, detailBudget: +$("inBudget").value, startCash: Math.round(cash * 100) / 100, mutation: +$("inMut").value, samplesPerDay: +$("inSamples").value, breeding: br.breeding, breedPool: br.breedPool,
         breedPairing: br.breedPairing, brackets: br.brackets, levels: br.levels, threshold: br.threshold, threshold2: br.threshold2, pct: br.pct, allowed: br.allowed });
     });
     $("btnCloseBot").addEventListener("click", function () { $("dlgBot").close(); });
@@ -5250,13 +6028,46 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     });
     window.addEventListener("resize", function () { renderAll(true); });
     document.addEventListener("keydown", function (e) {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || document.querySelector("dialog[open]")) return;
-      if (e.key === " ") { e.preventDefault(); $("btnPlay").click(); }
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "k" || e.key === "K")) { e.preventDefault(); if ($("dlgPalette").open) $("dlgPalette").close(); else openPalette(""); return; }
+      if ((e.metaKey || e.ctrlKey) && (e.key === "Enter")) { e.preventDefault(); $("btnPlay").click(); return; }
+      var tag = e.target.tagName;
+      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || e.target.isContentEditable || document.querySelector("dialog[open]") || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (document.body.classList.contains("final-mode")) return;
+      var k = e.key, hit = true;
+      if (k === " ") $("btnPlay").click();
+      else if (k === "n" || k === "N") $("btnNew").click();
+      else if (k === "f" || k === "F") $("btnFinish").click();
+      else if (k === "d" || k === "D") $("btnData").click();
+      else if (k === "b" || k === "B") $("btnDataBot").click();
+      else if (k === "m" || k === "M") $("modeSwitch").click();
+      else if (k === "t" || k === "T") $("btnTheme").click();
+      else if (k === "c" || k === "C") setChartType(chart.type === "candle" ? "line" : chart.type === "line" ? "area" : "candle");
+      else if (k === "i" || k === "I") select(-1);
+      else if (k === "/") $("search").focus();
+      else if (k === "?") openPalette("");
+      else if (k === "+" || k === "=") chart.zoomBy(0.8, null);
+      else if (k === "-" || k === "_") chart.zoomBy(1.25, null);
+      else if (k === "0") chart.reset();
+      else if (k === "ArrowLeft") chart.panBy(e.shiftKey ? 40 : 8);
+      else if (k === "ArrowRight") chart.panBy(e.shiftKey ? -40 : -8);
+      else if (k === "ArrowDown" || k === "ArrowUp") {
+        var at = S.filtered.indexOf(S.sel), nx = Math.max(0, Math.min(S.filtered.length - 1, at + (k === "ArrowDown" ? 1 : -1)));
+        if (S.filtered.length) { select(S.filtered[nx]); var box = $("mList"); if (nx * ROW < box.scrollTop || nx * ROW > box.scrollTop + box.clientHeight - ROW) box.scrollTop = nx * ROW - box.clientHeight / 2; }
+      }
+      else if (k >= "1" && k <= "5") setSpeed(+k - 1);
+      else hit = false;
+      if (hit) e.preventDefault();
     });
   }
 
-  var theme = store("tb-theme");
-  if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+  function applyTheme() {
+    var pick = store("tb-theme"), sysLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+    var t = pick === "light" || pick === "dark" ? pick : sysLight ? "light" : "dark";
+    document.documentElement.dataset.theme = t;
+    var meta = document.querySelector('meta[name="theme-color"]:not([media])'); if (meta) meta.setAttribute("content", t === "light" ? "#ffffff" : "#161b21");
+    if (S.sim) renderAll(true);
+  }
+  applyTheme();
   wire();
   showPanel("pChart");
   build(S.cfg);
@@ -5733,7 +6544,12 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
     var enc = await encode(bundle, opts);
     say("Checking " + repo);
     var meta = await api("GET", "/repos/" + repo), base = opts.base || meta.default_branch;
-    var branch = state.branch || "trading-data-bot/" + bundle.kind + "-" + bundle.key;
+    if (state.pr) {   // the repository's bot merges pull requests as they arrive: once merged or closed, later sends open a fresh one
+      var open = true;
+      try { open = (await api("GET", "/repos/" + repo + "/pulls/" + state.pr)).state === "open"; } catch (e) { if (e.status !== 404) throw e; open = false; }
+      if (!open) state = { branch: null, pr: null, next: true };
+    }
+    var branch = state.branch || "trading-data-bot/" + bundle.kind + "-" + bundle.key + (state.next ? "-u" + Date.now().toString(36) : "");
     var headRef = null;
     if (state.branch) { try { headRef = await api("GET", "/repos/" + repo + "/git/ref/heads/" + encodeURIComponent(branch).replace(/%2F/g, "/")); } catch (e) { if (e.status !== 404) throw e; } }
     var baseRef = await api("GET", "/repos/" + repo + "/git/ref/heads/" + base), parentSha = headRef ? headRef.object.sha : baseRef.object.sha;
@@ -5872,7 +6688,7 @@ T.SYMBOLS = [["AAPL","Apple",0,0,349.21,5074783.28,40906860,1],["MSFT","Microsof
   function wire() {
     $("docsRepo").value = get("localStorage", K.repo) || D.DEFAULT_REPO;
     $("docsBase").value = get("localStorage", K.base) || "main";
-    $("docsAuto").checked = get("localStorage", K.auto) === "1";
+    $("docsAuto").checked = get("localStorage", K.auto) !== "0";   // on unless you turned it off
     $("docsEvery").value = get("localStorage", K.every) || "25";
     $("docsRemember").checked = !!get("localStorage", K.token);
     $("dataBotDot").hidden = !$("docsAuto").checked;

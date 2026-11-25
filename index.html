@@ -449,7 +449,7 @@ try { var tbT = localStorage.getItem("tb-theme"); document.documentElement.datas
         </ol>
       </details>
     </div>
-    <div class="field"><label class="check"><input type="checkbox" id="docsAuto"> Send automatically: open a pull request when a run or a training finishes</label>
+    <div class="field"><label class="check"><input type="checkbox" id="docsAuto"> Send automatically (on by default): open a pull request when a run or a training finishes. The repository's bot merges it for you</label>
       <span class="hint">In endless runs the run's pull request is also updated every <input class="input tiny" id="docsEvery" type="number" min="1" max="10000" value="25" aria-label="Generations between updates"> generations.</span></div>
     <div class="dlg-actions left">
       <button type="submit" class="btn primary" id="btnDocsSend">Open pull request</button>

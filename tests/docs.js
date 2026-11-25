@@ -26,6 +26,7 @@ function mockGitHub(opts) {
     if (method === "POST" && /\/git\/refs$/.test(p)) { refs[body.ref.replace("refs/", "")] = body.sha; return {}; }
     if (method === "PATCH" && (m = /\/git\/refs\/(.+)$/.exec(p))) { assert.ok(refs[m[1]], "patching an existing ref"); refs[m[1]] = body.sha; return {}; }
     if (method === "POST" && /\/pulls$/.test(p)) { pulls.push(body); return { number: pulls.length, html_url: "https://github.com/o/r/pull/" + pulls.length }; }
+    if (method === "GET" && (m = /\/pulls\/(\d+)$/.exec(p))) return { state: pulls[+m[1] - 1].state || "open" };
     if (method === "PATCH" && (m = /\/pulls\/(\d+)$/.exec(p))) { pulls[+m[1] - 1].title = body.title; return { number: +m[1], html_url: "https://github.com/o/r/pull/" + m[1] }; }
     if (method === "POST" && /\/labels$/.test(p)) { pulls[pulls.length - 1].labels = body.labels; return {}; }
     throw new Error("unexpected " + method + " " + p);
@@ -59,6 +60,12 @@ function mockGitHub(opts) {
   assert.strictEqual(r2.pr, 1); assert.ok(r2.updated); assert.strictEqual(gh.pulls.length, 1);
   assert.strictEqual(gh.commits[gh.refs["heads/" + r1.branch]].parents[0], before, "new commit on top of the run's branch");
   console.log("ok  later sends of the same run add a commit to the same pull request");
+
+  // once the repository's bot has merged that pull request, the next send opens a new one on a new branch
+  gh.pulls[0].state = "closed";
+  var r2b = await D.push(D.simBundle(sim), { repo: "o/r", request: gh.api, zlib: zlib, state: { branch: r1.branch, pr: r1.pr } });
+  assert.strictEqual(r2b.pr, 2); assert.ok(!r2b.updated); assert.ok(r2b.branch !== r1.branch && r2b.branch.indexOf(r1.branch + "-u") === 0, "fresh branch");
+  console.log("ok  after the bot merges a run's pull request, the next send opens a new one");
 
   // shelf index is not re-added when it exists; final training bundle
   var gh2 = mockGitHub({ hasShelf: true });

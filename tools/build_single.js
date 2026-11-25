@@ -18,6 +18,8 @@ html = html.replace(/<script src="([^"]+)"( defer)?><\/script>/g, function (m, s
   return js(src);
 });
 html = html.replace('<link rel="manifest" href="manifest.webmanifest">\n', "");
+var touch = "data:image/png;base64," + fs.readFileSync(path.join(root, "icon-180.png")).toString("base64");
+html = html.replace('<link rel="apple-touch-icon" href="icon-180.png">', artifact ? "" : '<link rel="apple-touch-icon" href="' + touch + '">');
 var icon = "data:image/svg+xml;base64," + Buffer.from(read("icon.svg")).toString("base64");
 html = html.replace('<link rel="icon" href="icon.svg" type="image/svg+xml">', artifact ? "" : '<link rel="icon" href="' + icon + '" type="image/svg+xml">');
 

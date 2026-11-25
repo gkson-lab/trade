@@ -24,6 +24,7 @@ permissions:
 
 jobs:
   train:
+    if: github.actor == 'gkson-lab' && github.triggering_actor == 'gkson-lab'
     runs-on: ubuntu-latest
     timeout-minutes: 350
     steps:

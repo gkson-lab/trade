@@ -181,7 +181,12 @@
     var enc = await encode(bundle, opts);
     say("Checking " + repo);
     var meta = await api("GET", "/repos/" + repo), base = opts.base || meta.default_branch;
-    var branch = state.branch || "trading-data-bot/" + bundle.kind + "-" + bundle.key;
+    if (state.pr) {   // the repository's bot merges pull requests as they arrive: once merged or closed, later sends open a fresh one
+      var open = true;
+      try { open = (await api("GET", "/repos/" + repo + "/pulls/" + state.pr)).state === "open"; } catch (e) { if (e.status !== 404) throw e; open = false; }
+      if (!open) state = { branch: null, pr: null, next: true };
+    }
+    var branch = state.branch || "trading-data-bot/" + bundle.kind + "-" + bundle.key + (state.next ? "-u" + Date.now().toString(36) : "");
     var headRef = null;
     if (state.branch) { try { headRef = await api("GET", "/repos/" + repo + "/git/ref/heads/" + encodeURIComponent(branch).replace(/%2F/g, "/")); } catch (e) { if (e.status !== 404) throw e; } }
     var baseRef = await api("GET", "/repos/" + repo + "/git/ref/heads/" + base), parentSha = headRef ? headRef.object.sha : baseRef.object.sha;

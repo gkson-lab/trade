@@ -42,7 +42,12 @@ async function send(bundle, opts) {
 async function sendViaGit(bundle, opts) {
   var D = global.T.DocsPush, dir = opts.git, fs = require("fs"), path = require("path"), repo = opts.repo || D.DEFAULT_REPO;
   function git(args) { var r = cp.spawnSync("git", ["-C", dir].concat(args), { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }); if (r.status !== 0) throw new Error("git " + args[0] + ": " + (r.stderr || r.stdout).trim()); return r.stdout.trim(); }
-  var base = opts.base || "main", state = opts.state || {}, branch = state.branch || "trading-data-bot/" + bundle.kind + "-" + bundle.key;
+  var base = opts.base || "main", state = opts.state || {}, api = ghTransport();
+  if (state.pr) {   // merged or closed by the repository's bot: start a fresh pull request
+    var open = true; try { open = (await api("GET", "/repos/" + repo + "/pulls/" + state.pr)).state === "open"; } catch (e) { open = false; }
+    if (!open) state = { next: true };
+  }
+  var branch = state.branch || "trading-data-bot/" + bundle.kind + "-" + bundle.key + (state.next ? "-u" + Date.now().toString(36) : "");
   var enc = await D.encode(bundle, { zlib: zlib, link: opts.link });
   git(["fetch", "--depth", "1", "origin", base]);
   if (state.branch) { git(["fetch", "--depth", "1", "origin", branch]); git(["checkout", "-B", branch, "origin/" + branch]); }
@@ -55,7 +60,7 @@ async function sendViaGit(bundle, opts) {
   git(["-c", "push.negotiate=true", "push", "-q", "-u", "origin", branch]);
   var body = bundle.intro + "\n\n" + bundle.facts.map(function (f) { return "- **" + f[0] + ":** " + f[1]; }).join("\n") + "\n\nAdds `" + bundle.dir + "` (" + files.length +
     " files, " + (enc.bytes / 1048576).toFixed(1) + " MB).\n\nOpened by the **Trading data bot** in Trade Box (gkson-lab/trade).";
-  var api = ghTransport(), pr;
+  var pr;
   if (state.pr) pr = await api("PATCH", "/repos/" + repo + "/pulls/" + state.pr, { title: bundle.title, body: body });
   else {
     pr = await api("POST", "/repos/" + repo + "/pulls", { title: bundle.title, head: branch, base: base, body: body });

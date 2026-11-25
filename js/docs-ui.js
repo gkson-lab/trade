@@ -90,7 +90,7 @@
   function wire() {
     $("docsRepo").value = get("localStorage", K.repo) || D.DEFAULT_REPO;
     $("docsBase").value = get("localStorage", K.base) || "main";
-    $("docsAuto").checked = get("localStorage", K.auto) === "1";
+    $("docsAuto").checked = get("localStorage", K.auto) !== "0";   // on unless you turned it off
     $("docsEvery").value = get("localStorage", K.every) || "25";
     $("docsRemember").checked = !!get("localStorage", K.token);
     $("dataBotDot").hidden = !$("docsAuto").checked;
