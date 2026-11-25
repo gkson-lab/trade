@@ -700,6 +700,18 @@
     this._pool = out; this._poolBar = this.gBar;
     return out;
   };
+  /* The pool's 15 bot inputs packed into one contiguous array, built once per bar and shared by every bot. */
+  Market.prototype.poolMatrix = function () {
+    if (this._pmBar === this.gBar) return this._pm;
+    var pool = this.pool(), F = this.NF, X = this._pmX && this._pmX.length >= pool.length * F ? this._pmX : new Float32Array(Math.max(pool.length, 512) * F);
+    for (var j = 0; j < pool.length; j++) {
+      var base = this.featuresOf(pool[j]), o = j * F;
+      for (var k = 0; k < F; k++) X[o + k] = this.features[base + k];
+    }
+    this._pmX = X; this._pm = { idx: pool, X: X, n: pool.length }; this._pmBar = this.gBar;
+    return this._pm;
+  };
+
   Market.prototype.topMovers = function (count, up) {
     var n = this.n, best = [], i;
     for (i = 0; i < n; i++) {

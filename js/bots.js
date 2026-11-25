@@ -225,6 +225,7 @@
   Bot.prototype.reset = function () {
     this.cash = this.startCash;
     this.pos = Object.create(null);  // symbol index -> position
+    this.plist = [];                 // the same positions' symbol indices, for fast per-bar loops
     this.nPos = 0;
     this.trades = [];
     this.roundTrips = [];
@@ -250,19 +251,42 @@
     return (sign >= 0 ? "" : "Contra ") + FEATURE_NAMES[best];
   }
 
-  Bot.prototype.score = function (m, i) {
-    var base = m.featuresOf(i), f = m.features, w = this.genome.w, out = w[NW - 1], c = this.cfg, fm = c.fmult;
-    for (var h = 0; h < H; h++) {
-      var a = w[NF * H + h];
-      for (var k = 0; k < NF; k++) a += f[base + k] * fm[k] * w[k * H + h];
-      out += Math.tanh(a) * w[NF * H + H + h];
+  /* tanh to within 1e-6 for |x| < 4.9 (Pade approximant), much cheaper than Math.tanh in the hot loop. */
+  function ftanh(x) {
+    if (x > 4.9) return 1; if (x < -4.9) return -1;
+    var x2 = x * x;
+    return x * (135135 + x2 * (17325 + x2 * (378 + x2))) / (135135 + x2 * (62370 + x2 * (3150 + x2 * 28)));
+  }
+
+  /* Input weights with the bot's trait multipliers folded in (they never change for a bot). */
+  Bot.prototype.weights = function () {
+    if (this._weff) return this._weff;
+    var w = this.genome.w, fm = this.cfg.fmult, W = new Float32Array(NF * H);
+    for (var k = 0; k < NF; k++) for (var h = 0; h < H; h++) W[k * H + h] = w[k * H + h] * fm[k];
+    return (this._weff = W);
+  };
+
+  /* Score row j of the shared pool matrix. Same network as score(), unrolled for H = 8 hidden units. */
+  Bot.prototype.scoreRow = function (X, o) {
+    var W = this._weff || this.weights(), w = this.genome.w, c = this.cfg, b = NF * H, v = b + H;
+    var a0 = w[b], a1 = w[b + 1], a2 = w[b + 2], a3 = w[b + 3], a4 = w[b + 4], a5 = w[b + 5], a6 = w[b + 6], a7 = w[b + 7];
+    for (var k = 0, q = 0; k < NF; k++, q += 8) {
+      var x = X[o + k];
+      a0 += x * W[q]; a1 += x * W[q + 1]; a2 += x * W[q + 2]; a3 += x * W[q + 3];
+      a4 += x * W[q + 4]; a5 += x * W[q + 5]; a6 += x * W[q + 6]; a7 += x * W[q + 7];
     }
-    return Math.tanh(out + c.herdBias * f[base + 7] + c.sizeBias * f[base + 10] + c.volBias * f[base + 5]);
+    var out = w[NW - 1] + ftanh(a0) * w[v] + ftanh(a1) * w[v + 1] + ftanh(a2) * w[v + 2] + ftanh(a3) * w[v + 3] +
+      ftanh(a4) * w[v + 4] + ftanh(a5) * w[v + 5] + ftanh(a6) * w[v + 6] + ftanh(a7) * w[v + 7];
+    return ftanh(out + c.herdBias * X[o + 7] + c.sizeBias * X[o + 10] + c.volBias * X[o + 5]);
+  };
+
+  Bot.prototype.score = function (m, i) {
+    return this.scoreRow(m.features, m.featuresOf(i));
   };
 
   Bot.prototype.markEquity = function (m) {
     var e = this.cash, gross = 0, net = 0;
-    for (var k in this.pos) { var p = this.pos[k], v = p.q * m.price[k]; e += v; gross += Math.abs(v); net += v; }
+    for (var j = 0, L = this.plist; j < L.length; j++) { var k = L[j], p = this.pos[k], v = p.q * m.price[k]; e += v; gross += v < 0 ? -v : v; net += v; }
     this.equity = e;
     this.gross = gross; this.net = net;
     if (e > this.peakEquity) this.peakEquity = e;
@@ -307,7 +331,7 @@
     if (!p) {
       this.pos[i] = { q: qty, avg: px, day: m.day, bar: m.bar, gBar: m.gBar, peak: px, trough: px, score: score === undefined ? null : score,
         why: reason, regime: m.REGIMES[m.regime].name, fees: fee, rsi: Math.round(m.rsi(i) * 10) / 10, snap: m.snapshot(i) };
-      this.nPos++;
+      this.nPos++; this.plist.push(i);
     } else if ((p.q > 0) === (qty > 0)) {
       p.avg = (p.avg * p.q + px * qty) / (p.q + qty); p.q += qty; p.fees += fee;
     } else {
@@ -316,13 +340,33 @@
       p.fees += fee;
       this.bookTrip(m, i, p, px, closeQ, realized, reason);
       p.q += qty;
-      if (Math.abs(p.q) < 1e-9) { delete this.pos[i]; this.nPos--; }
+      if (Math.abs(p.q) < 1e-9) this.dropPos(i);
     }
     this.trades.push({ day: m.day, bar: m.bar, sym: sym, sector: T.SECTORS[m.sector[i]],
       side: qty > 0 ? (realized !== null ? "COVER" : "BUY") : (realized !== null ? "SELL" : "SHORT"),
       qty: Math.abs(qty), px: px, mid: m.price[i], spreadBps: q.spread * 1e4, impactBps: impact * 1e4, notional: notional,
       fee: fee, pnl: realized, reason: reason, score: score === undefined ? null : score, cashAfter: this.cash });
     return true;
+  };
+
+  var CB = { s: new Float64Array(0), i: new Int32Array(0) }, CW = { s: new Float64Array(0), i: new Int32Array(0) };
+  /* The k highest-scoring candidates, best first, as [score, symbol] pairs. */
+  function topK(buf, n, k) {
+    var out = [];
+    if (k <= 0 || n === 0) return out;
+    if (n <= k) { for (var a = 0; a < n; a++) out.push([buf.s[a], buf.i[a]]); return out.sort(function (x, y) { return y[0] - x[0]; }); }
+    var used = new Uint8Array(n);
+    for (var r = 0; r < k; r++) {
+      var bi = -1, bs = -Infinity;
+      for (var t = 0; t < n; t++) if (!used[t] && buf.s[t] > bs) { bs = buf.s[t]; bi = t; }
+      used[bi] = 1; out.push([bs, buf.i[bi]]);
+    }
+    return out;
+  }
+
+  Bot.prototype.dropPos = function (i) {
+    delete this.pos[i]; this.nPos--;
+    var k = this.plist.indexOf(i); if (k >= 0) this.plist.splice(k, 1);
   };
 
   Bot.prototype.closeAll = function (m, reason) {
@@ -335,7 +379,7 @@
         this.bookTrip(m, +k, p, px, Math.abs(p.q), pnl, reason + " (halted, marked)");
         this.trades.push({ day: m.day, bar: m.bar, sym: m.sym[k], sector: T.SECTORS[m.sector[k]], side: p.q > 0 ? "SELL" : "COVER", qty: Math.abs(p.q),
           px: px, mid: px, spreadBps: 0, impactBps: 0, notional: Math.abs(p.q) * px, fee: 0, pnl: pnl, reason: reason + " (halted, marked)", score: null, cashAfter: this.cash });
-        delete this.pos[k]; this.nPos--;
+        this.dropPos(+k);
       }
     }
   };
@@ -353,7 +397,7 @@
     var newQ = p.q / f, whole = newQ > 0 ? Math.floor(newQ) : Math.ceil(newQ);
     this.cash += (newQ - whole) * m.price[i];  // cash in lieu of fractional shares
     p.avg *= f; p.peak *= f; p.trough *= f; p.q = whole;
-    if (whole === 0) { delete this.pos[i]; this.nPos--; }
+    if (whole === 0) this.dropPos(i);
   };
 
   /* Called every bar. Returns true if the bot acted. */
@@ -363,9 +407,9 @@
     // margin: liquidate if equity falls below 30% of gross exposure
     if (this.gross > 0 && e < 0.3 * this.gross) { this.marginCalls++; this.closeAll(m, "margin call"); return true; }
 
-    // track excursions and run risk exits every bar
-    for (var k in this.pos) {
-      var p = this.pos[k], px = m.price[k], long = p.q > 0;
+    // track excursions and run risk exits every bar (backwards: an exit removes the entry)
+    for (var j = this.plist.length - 1; j >= 0; j--) {
+      var k = this.plist[j], p = this.pos[k], px = m.price[k], long = p.q > 0;
       if (px > p.peak) p.peak = px;
       if (px < p.trough) p.trough = px;
       var ret = long ? px / p.avg - 1 : 1 - px / p.avg;
@@ -375,7 +419,7 @@
       else if (c.trail && ret > c.stopLoss && fromRef <= -c.stopLoss) reason = "trailing stop";
       else if (ret >= c.takeProfit) reason = "take profit";
       else if (m.day - p.day >= c.maxHold) reason = "max hold";
-      if (reason) this.fill(m, +k, -p.q, reason);
+      if (reason) this.fill(m, k, -p.q, reason);
     }
 
     if (m.gBar % 6 === 0) {
@@ -385,23 +429,26 @@
     if ((m.gBar + this.offset) % c.interval !== 0) return false;
 
     // re-score holdings, exit if the signal turned
-    for (k in this.pos) {
-      var s = this.score(m, +k), q = this.pos[k].q;
-      if ((q > 0 && s < c.sellTh) || (q < 0 && s > -c.sellTh)) this.fill(m, +k, -q, "signal");
+    for (j = this.plist.length - 1; j >= 0; j--) {
+      var h = this.plist[j], s = this.score(m, h), q = this.pos[h].q;
+      if ((q > 0 && s < c.sellTh) || (q < 0 && s > -c.sellTh)) this.fill(m, h, -q, "signal");
     }
     if (m.bar >= m.BARS_PER_DAY - 1) return true;  // no new entries into the closing print
     if (m.bar < c.entryFrom || m.bar > c.entryTo) return true;   // outside this bot's trading hours (a trait)
 
-    var pool = m.pool(), best = [], worst = [], buyTh = c.buyTh;
-    for (var j = 0; j < pool.length; j++) {
+    if (this.nPos >= c.maxPos) return true;   // full: nothing to buy, so don't score the market
+    // candidates go into shared buffers (no per-stock allocations), then the best few are picked in order
+    var pm = m.poolMatrix(), pool = pm.idx, X = pm.X, buyTh = c.buyTh, secs = c.sectors, sector = m.sector, nb = 0, nw = 0;
+    if (CB.s.length < pm.n) { CB.s = new Float64Array(pm.n * 2); CB.i = new Int32Array(pm.n * 2); CW.s = new Float64Array(pm.n * 2); CW.i = new Int32Array(pm.n * 2); }
+    for (j = 0; j < pm.n; j++) {
       var i = pool[j];
-      if (this.pos[i] || (c.sectors && !c.sectors[m.sector[i]])) continue;
-      var sc = this.score(m, i);
-      if (sc > buyTh) best.push([sc, i]);
-      else if (c.shortOn && sc < -buyTh) worst.push([sc, i]);
+      if (this.pos[i] || (secs && !secs[sector[i]])) continue;
+      var sc = this.scoreRow(X, j * NF);
+      if (sc > buyTh) { CB.s[nb] = sc; CB.i[nb++] = i; }
+      else if (c.shortOn && sc < -buyTh) { CW.s[nw] = -sc; CW.i[nw++] = i; }
     }
-    best.sort(function (a, b) { return b[0] - a[0]; });
-    worst.sort(function (a, b) { return a[0] - b[0]; });
+    var best = topK(CB, nb, c.maxPos - this.nPos), worst = topK(CW, nw, c.maxPos - this.nPos);
+    worst.forEach(function (x) { x[0] = -x[0]; });
     var slots = c.maxPos - this.nPos;
     var reserve = e * c.cashReserve;
     var ib = 0, iw = 0;

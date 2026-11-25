@@ -408,7 +408,7 @@
       });
     }
     this.gen--;
-    retired.forEach(function (b) { if (next.indexOf(b) < 0) { b.trades = []; b.roundTrips = []; b.intraCurve = []; b.idxCurve = []; b.expCurve = []; b.pos = {}; } });
+    retired.forEach(function (b) { if (next.indexOf(b) < 0) { b.trades = []; b.roundTrips = []; b.intraCurve = []; b.idxCurve = []; b.expCurve = []; b.pos = {}; b.plist = []; b.nPos = 0; } });
     this.bots = next;
     this.markAlive();
   };
