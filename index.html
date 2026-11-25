@@ -2,10 +2,21 @@
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
+<script>/* pick the theme before first paint: saved choice, else the system's light/dark setting */
+try { var tbT = localStorage.getItem("tb-theme"); document.documentElement.dataset.theme = tbT === "light" || tbT === "dark" ? tbT : (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"); } catch (e) {}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Trade Box</title>
 <meta name="description" content="Evolving AI trading bots on a simulated US stock market.">
-<meta name="theme-color" content="#0f1419">
+<meta name="theme-color" content="#161b21">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#161b21">
+<meta name="color-scheme" content="dark light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Trade Box">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="icon-180.png">
 <meta name="update-repo" content="gkson-lab/trade">
 <meta name="update-branch" content="main">
 <link rel="manifest" href="manifest.webmanifest">
@@ -53,7 +64,11 @@
       <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 3v12m0 0a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm12-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 0v3a3 3 0 0 1-3 3H9"/></svg>
       <span>Trading data bot</span><span class="dot" id="dataBotDot" hidden></span>
     </button>
-    <button id="btnTheme" class="btn icon" type="button" aria-label="Toggle light or dark theme">
+    <button id="btnPalette" class="btn cmdk" type="button" aria-haspopup="dialog" aria-label="Commands and search">
+      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="m21 21-4.3-4.3M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>
+      <kbd id="palKbd">Ctrl+K</kbd>
+    </button>
+    <button id="btnTheme" class="btn icon" type="button" aria-label="Toggle light or dark theme" title="Light or dark (double-click: follow the system)">
       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
     </button>
   </div>
@@ -114,6 +129,25 @@
         <button type="button" role="tab" class="seg-btn" data-tf="1D" aria-selected="false">1D</button>
       </div>
     </div>
+    <div class="chart-tools" role="toolbar" aria-label="Chart tools">
+      <div class="seg" role="group" aria-label="Chart type">
+        <button type="button" class="seg-btn active" data-ctype="candle" aria-pressed="true">Candles</button>
+        <button type="button" class="seg-btn" data-ctype="line" aria-pressed="false">Line</button>
+        <button type="button" class="seg-btn" data-ctype="area" aria-pressed="false">Area</button>
+      </div>
+      <div class="toggles" role="group" aria-label="Indicators">
+        <button type="button" class="tog i-sma20" data-ind="sma20" aria-pressed="true">SMA 20</button>
+        <button type="button" class="tog i-sma50" data-ind="sma50" aria-pressed="false">SMA 50</button>
+        <button type="button" class="tog i-bb" data-ind="bb" aria-pressed="false">Bollinger</button>
+        <button type="button" class="tog i-vwap" data-ind="vwap" id="indVwap" aria-pressed="false">VWAP</button>
+      </div>
+      <span class="legend-trades" aria-hidden="true"><i class="tri up"></i>bot buys <i class="tri down"></i>bot sells</span>
+      <div class="zoom" role="group" aria-label="Zoom">
+        <button type="button" class="btn icon small" id="btnZoomOut" aria-label="Zoom out" title="Zoom out (−)">−</button>
+        <button type="button" class="btn icon small" id="btnZoomIn" aria-label="Zoom in" title="Zoom in (+). Pinch or scroll on the chart, drag to pan.">+</button>
+        <button type="button" class="btn small" id="btnLive" hidden title="Back to the latest bars (0 or double-click the chart)">Live</button>
+      </div>
+    </div>
     <div class="fund-row" id="fundRow" aria-label="Fundamentals and technicals">
       <div><span class="k">Mkt cap</span><span id="fCap" class="num"></span></div>
       <div><span class="k">P/E</span><span id="fPE" class="num"></span></div>
@@ -126,7 +160,7 @@
       <div><span class="k">6M range</span><span id="fRange" class="num"></span></div>
       <div><span class="k">Beta</span><span id="fBeta" class="num"></span></div>
     </div>
-    <div class="chart-wrap"><canvas id="mainChart" aria-label="Price chart" role="img"></canvas></div>
+    <div class="chart-wrap"><canvas id="mainChart" aria-label="Price chart. Scroll or pinch to zoom, drag to pan, double-click for the latest bars." role="img"></canvas></div>
     <div class="minis-head"><h3>Live charts</h3><span class="muted">Most held by bots, then biggest movers. Select one to open it.</span></div>
     <div id="minis" class="minis"></div>
   </section>
@@ -294,6 +328,8 @@
   <button type="button" data-panel="pFeed">News</button>
 </nav>
 
+<div class="gen-toast" id="genToast" role="status" aria-live="polite" hidden></div>
+
 <footer class="statusbar">
   <span id="status">Ready. Press Start.</span>
   <span class="muted"><span id="updateStatus">Checking GitHub for updates…</span> · Fictional market: real US symbols, simulated prices. Not investment advice.</span>
@@ -356,6 +392,19 @@
         <option value="400">400 stocks a day (big model, big files)</option>
       </select>
       <span class="hint">Stocks the bots hold and stocks with news that day are always sampled too. This is the biggest table in the training data.</span></div>
+    <div class="grid2">
+      <div class="field"><label class="label" for="inSymbols">Market size</label>
+        <select class="select full" id="inSymbols">
+          <option value="0" selected>Full market (every symbol)</option>
+          <option value="3000">3,000 symbols (faster)</option>
+          <option value="1500">1,500 symbols (older laptops, phones)</option>
+          <option value="500">500 symbols (fastest, lowest memory)</option>
+        </select>
+        <span class="hint">Biggest companies are kept. Fewer symbols means more bots and more speed on the same machine.</span></div>
+      <div class="field"><span class="label">Background</span>
+        <label class="check"><input type="checkbox" id="inBackground" checked> Keep running when this tab or window is in the background</label>
+        <span class="hint">Drawing pauses while hidden, so the simulation gets the whole processor.</span></div>
+    </div>
     <div class="field"><label class="label" for="inBudget">Memory for trade-level data</label>
       <select class="select full" id="inBudget">
         <option value="3000000">About 150 MB (phones)</option>
@@ -411,6 +460,18 @@
     <p class="docs-status" id="docsStatus" role="status"></p>
     <p class="err" id="docsErr" role="alert" hidden></p>
   </form>
+</dialog>
+
+<dialog id="dlgPalette" class="palette" aria-label="Commands and search">
+  <div class="pal">
+    <div class="pal-top">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="m21 21-4.3-4.3M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>
+      <input id="palInput" class="pal-input" type="text" role="combobox" aria-expanded="true" aria-controls="palList" aria-autocomplete="list"
+        placeholder="Type an action, a symbol or a bot" autocomplete="off" spellcheck="false">
+    </div>
+    <ul id="palList" class="pal-list" role="listbox" aria-label="Results"></ul>
+    <p class="pal-foot">↑ ↓ to move · Enter to run · Esc to close · Single keys work anywhere: Space start/pause, 1–5 speed, N new run, D data, C chart type, + − zoom, ← → pan, ↑ ↓ symbols</p>
+  </div>
 </dialog>
 
 <dialog id="dlgFinish" aria-labelledby="dlgFinishTitle">

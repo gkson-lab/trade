@@ -14,17 +14,27 @@
   var S = {
     sim: null, running: false, speed: 15, sel: -1, tf: "5m", filter: "all", sector: -1, query: "",
     feed: "news", acc: 0, lastT: 0, lastList: 0, lastMinis: 0, minis: [], newsSeen: 0, filtered: [], heldCount: null,
-    tradeSeen: {}, cfg: { mult: 1, generations: 6, daysPerGen: 10, seed: 20270104, fitness: "return", detailBudget: 8000000, startCash: 100000 }, dirtyBots: true
+    tradeSeen: {}, cfg: { mult: 1, generations: 6, daysPerGen: 10, seed: 20270104, fitness: "return", detailBudget: 8000000, startCash: 100000, maxSymbols: 0 }, dirtyBots: true,
+    lastTop: 0, chartSig: "", minisBar: -1, background: store("tb-background") !== "off", botOrder: "", prevPx: null
   };
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   var chart = new T.CandleChart($("mainChart"));
+  (function chartPrefs() {
+    var saved = null;
+    try { saved = JSON.parse(store("tb-chart") || "null"); } catch (e) { saved = null; }
+    if (saved) { if (saved.type) chart.type = saved.type; if (saved.ind) for (var k in chart.ind) if (k in saved.ind) chart.ind[k] = !!saved.ind[k]; }
+  })();
+  function saveChartPrefs() { store("tb-chart", JSON.stringify({ type: chart.type, ind: chart.ind })); }
+  chart.onView = function (v) { $("btnLive").hidden = v.live && !v.zoomed; };
 
   /* ---------- setup ---------- */
   function build(cfg) {
     S.running = false; setPlay();
     S.sim = new T.Sim(cfg);
     S.cfg = cfg;
-    S.newsSeen = 0; S.tradeSeen = {}; S.dirtyBots = true; S.heldCount = null;
+    S.newsSeen = 0; S.tradeSeen = {}; S.dirtyBots = true; S.heldCount = null; S.chartSig = ""; S.minisBar = -1; S.botOrder = ""; S.prevPx = null;
+    hideToast();
     clear($("feedNews")); clear($("feedTrades"));
     S.sim.on(onSimEvent);
     if (T.onSimBuilt) T.onSimBuilt(S.sim);
@@ -43,6 +53,7 @@
       var s = d.summary, next = d.final || S.sim.stopRequested ? " Run complete." : " Breeding generation " + (s.gen + 1) + ": " + S.sim.expectedSize(s.gen + 1) + " bots.";
       setStatus("Generation " + s.gen + " finished. Avg " + pct(s.avgReturn) + ", best " + s.bestBot + " " + pct(s.bestReturn) + ", SIM 500 " + pct(s.indexReturn) + "." + next);
       S.dirtyBots = true; S.tradeSeen = {};
+      if (!d.final && !S.sim.stopRequested) genToast(d);
     } else if (type === "trimmed") {
       S.trimmed = d;
     } else if (type === "done") {
@@ -62,28 +73,52 @@
   }
 
   /* ---------- main loop ---------- */
+  /* Steps the simulation for up to `budget` ms at the chosen speed. */
+  function advance(dt, budget) {
+    var t0 = performance.now();
+    if (S.speed === 0) {
+      while (performance.now() - t0 < budget && !S.sim.done) S.sim.step();
+    } else {
+      S.acc += dt * S.speed;
+      while (S.acc >= 1 && !S.sim.done && performance.now() - t0 < budget + 12) { S.sim.step(); S.acc -= 1; }
+      if (S.acc > 3) S.acc = 0;
+    }
+  }
   function frame(t) {
     requestAnimationFrame(frame);
-    if (!S.sim) return;
+    if (!S.sim || document.hidden) return;
     var dt = S.lastT ? Math.min(0.25, (t - S.lastT) / 1000) : 0;
     S.lastT = t;
     if (S.running && !S.sim.done) {
-      var t0 = performance.now();
-      if (S.speed === 0) {
-        while (performance.now() - t0 < 28 && !S.sim.done) S.sim.step();
-      } else {
-        S.acc += dt * S.speed;
-        while (S.acc >= 1 && !S.sim.done && performance.now() - t0 < 40) { S.sim.step(); S.acc -= 1; }
-        if (S.acc > 3) S.acc = 0;
-      }
+      // Max speed gives the simulation most of each frame but always leaves time to draw (smooth on 60 and 120 Hz screens)
+      advance(dt, S.speed === 0 ? (S.frameMs > 14 ? 24 : 12) : 28);
       renderAll(false);
     }
+    S.frameMs = S.frameMs ? S.frameMs * 0.9 + 0.1 * Math.min(100, dt * 1000) : 16;
   }
+  /* Hidden tab: browsers stop animation frames and slow timers, so a message-channel loop keeps the run going without drawing. */
+  var bg = { ch: null, on: false, last: 0 };
+  function bgTick() {
+    if (!bg.on) return;
+    if (!document.hidden || !S.running || !S.sim || S.sim.done) { bg.on = false; return; }
+    var now = performance.now(), dt = Math.min(1, (now - bg.last) / 1000); bg.last = now;
+    advance(dt, 45);
+    bg.ch.port2.postMessage(0);
+  }
+  function startBackground() {
+    if (bg.on || !S.background || typeof MessageChannel === "undefined") return;
+    if (!bg.ch) { bg.ch = new MessageChannel(); bg.ch.port1.onmessage = bgTick; }
+    bg.on = true; bg.last = performance.now(); bg.ch.port2.postMessage(0);
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) { if (S.running) startBackground(); }
+    else { bg.on = false; S.lastT = 0; if (S.sim) { S.dirtyBots = true; renderAll(true); } }
+  });
 
   function renderAll(force) {
     var now = performance.now();
-    renderTop();
-    renderChart();
+    if (force || now - S.lastTop > 90) { S.lastTop = now; renderTop(); }
+    renderChart(force);
     if (force || now - S.lastList > 350) {
       S.lastList = now;
       if (S.filter === "gain" || S.filter === "lose" || S.filter === "held") refilter();
@@ -91,14 +126,15 @@
       renderBots();
       renderFeeds();
     }
-    if (force || now - S.lastMinis > 2500) { S.lastMinis = now; pickMinis(); }
-    renderMinis();
+    if (force || now - S.lastMinis > 2500) { S.lastMinis = now; pickMinis(); S.minisBar = -1; }
+    if (force || (S.minisBar !== S.sim.market.gBar && now - (S.lastMiniDraw || 0) > 240)) { S.lastMiniDraw = now; S.minisBar = S.sim.market.gBar; renderMinis(); }
   }
 
   /* ---------- top bar ---------- */
   function renderTop() {
     var m = S.sim.market, ch = m.indexChangePct();
-    $("idxVal").textContent = T.fmtPrice(m.index);
+    var iv = $("idxVal"), txt = T.fmtPrice(m.index);
+    if (iv.textContent !== txt) { if (S.lastIdx !== undefined) flash(iv, m.index > S.lastIdx); iv.textContent = txt; S.lastIdx = m.index; }
     $("vixVal").textContent = m.vix().toFixed(2);
     var c = $("idxChg"); c.textContent = pct(ch); c.className = "num chg " + cls(ch);
     var rg = $("regime"); rg.textContent = m.REGIMES[m.regime].name; rg.className = "badge " + m.REGIMES[m.regime].name;
@@ -116,10 +152,15 @@
     if (S.tf === "5m") { var b = ((t % m.BARS_PER_DAY) + m.BARS_PER_DAY) % m.BARS_PER_DAY, mins = 570 + b * 5; var h = Math.floor(mins / 60), mm = mins % 60; return (h > 12 ? h - 12 : h) + ":" + (mm < 10 ? "0" : "") + mm; }
     return m.dateStr(t).slice(5);
   }
-  function renderChart() {
-    var m = S.sim.market, i = S.sel, d = m.candles(i, S.tf, S.tf === "5m" ? m.INTRA : m.DAILY);
-    if (S.tf === "5m" && d.c.length < 2) d = m.candles(i, "1D", m.DAILY);
-    chart.set(d, tfLabel);
+  function renderChart(force) {
+    var m = S.sim.market, i = S.sel, sig = i + "|" + S.tf + "|" + m.gBar + "|" + S.sim.gen;
+    if (!force && sig === S.chartSig) return;
+    S.chartSig = sig;
+    var d = m.candles(i, S.tf, S.tf === "5m" ? m.INTRA : m.DAILY), daily = S.tf !== "5m";
+    if (S.tf === "5m" && d.c.length < 2) { d = m.candles(i, "1D", m.DAILY); daily = true; }
+    if (!daily) d.bpd = m.BARS_PER_DAY;
+    $("indVwap").disabled = daily;
+    chart.set(d, tfLabel, i >= 0 ? tradeMarkers(i, d, daily) : null);
     var last, chg, hi, lo, vol;
     if (i < 0) {
       $("chartSym").textContent = "SIM 500"; $("chartName").textContent = "Cap-weighted index of S&P 500 members";
@@ -152,6 +193,29 @@
       f("fRange", T.fmtPrice(m.loRange[i]) + " – " + T.fmtPrice(m.hiRange[i]));
       f("fBeta", m.beta[i].toFixed(2));
     }
+  }
+
+  /* Bot trades on one symbol, keyed by the chart's bar time, for the chart's markers and hover box. */
+  function tradeMarkers(i, d, daily) {
+    var m = S.sim.market, sym = m.sym[i], BPD = m.BARS_PER_DAY, first = d.t.length ? d.t[0] : 0, idx = Object.create(null), count = 0;
+    S.sim.bots.forEach(function (b) {
+      for (var j = b.trades.length - 1; j >= 0; j--) {
+        var t = b.trades[j], key = daily ? t.day : t.day * BPD + t.bar;
+        if (key < first) break;
+        if (t.sym !== sym) continue;
+        var mk = idx[key] || (idx[key] = { buy: 0, sell: 0, lines: [] }), buy = t.side === "BUY" || t.side === "COVER";
+        if (buy) mk.buy++; else mk.sell++;
+        mk.lines.push(t.side + " " + t.qty.toLocaleString() + " @ " + T.fmtPrice(t.px) + " · " + b.name + (t.pnl !== null ? " · " + signed$(t.pnl) : ""));
+        count++;
+      }
+    });
+    return { index: idx, length: count };
+  }
+
+  /* Brief colour pulse when a number changes (green up, red down). */
+  function flash(node, up) {
+    if (reduceMotion || !node.animate || (S.running && S.speed === 0 && node !== $("idxVal"))) return;   // at Max speed every price moves every update: too busy
+    node.animate([{ backgroundColor: up ? "var(--up-weak)" : "var(--down-weak)" }, { backgroundColor: "transparent" }], { duration: 600, easing: "ease-out" });
   }
 
   /* ---------- markets list (virtualized) ---------- */
@@ -201,7 +265,9 @@
       row.hidden = false; row._idx = i;
       row.style.top = ((first + k) * ROW) + "px";
       row._s.textContent = m.sym[i]; row._n.textContent = m.name[i];
-      row._p.textContent = T.fmtPrice(m.price[i]);
+      var ptxt = T.fmtPrice(m.price[i]);
+      if (row._p.textContent !== ptxt) { if (row._last !== undefined && row._lastIdx === i) flash(row._p, m.price[i] > row._last); row._p.textContent = ptxt; }
+      row._last = m.price[i]; row._lastIdx = i;
       var ch = m.changePct(i); row._c.textContent = pct(ch); row._c.className = "c num " + cls(ch);
       row.classList.toggle("sel", i === S.sel);
       row.setAttribute("aria-selected", i === S.sel ? "true" : "false");
@@ -209,8 +275,8 @@
   }
 
   function select(i) {
-    S.sel = i;
-    renderChart(); renderList(); renderMinis();
+    S.sel = i; chart.reset();
+    renderChart(true); renderList(); renderMinis();
     if (window.matchMedia("(max-width: 900px)").matches) showPanel("pChart");
   }
 
@@ -266,26 +332,46 @@
     bots.forEach(function (b) { b.markEquity(m); });
     bots.sort(function (a, b) { return b.equity - a.equity; });
     if (S.dirtyBots) {
-      clear(list); botRows = {};
+      clear(list); botRows = {}; S.botOrder = "";
       bots.forEach(function (b) {
         var li = el("li"), btn = el("button", "bot-row"); btn.type = "button";
-        var left = el("span", "lft"), nm = el("span", "nm"), rk = el("span", "rank num"), nmT = el("span"), st = el("span", "st");
-        nm.appendChild(rk); nm.appendChild(nmT); left.appendChild(nm); left.appendChild(st);
+        var left = el("span", "lft"), nm = el("span", "nm"), rk = el("span", "rank num"), nmT = el("span"), st = el("span", "st"), mv = el("span", "mv");
+        mv.setAttribute("aria-hidden", "true");
+        nm.appendChild(rk); nm.appendChild(nmT); nm.appendChild(mv); left.appendChild(nm); left.appendChild(st);
         var cv = el("canvas"); cv.setAttribute("aria-hidden", "true");
         var pl = el("span", "pl num"), plA = el("span"), plP = el("small");
         pl.appendChild(plA); pl.appendChild(plP);
         btn.appendChild(left); btn.appendChild(cv); btn.appendChild(pl);
         btn.addEventListener("click", function () { showBot(b); });
         li.appendChild(btn);
-        botRows[b.id] = { li: li, btn: btn, rk: rk, nm: nmT, st: st, cv: cv, plA: plA, plP: plP, pl: pl };
+        botRows[b.id] = { li: li, btn: btn, rk: rk, nm: nmT, st: st, cv: cv, plA: plA, plP: plP, pl: pl, mv: mv };
         list.appendChild(li);
       });
       S.dirtyBots = false;
     }
-    var start = sim.cfg.startCash, up = 0, sum = 0;
+    var start = sim.cfg.startCash, up = 0, sum = 0, order = bots.map(function (b) { return b.id; }).join(",");
+    if (order !== S.botOrder) {
+      // FLIP: remember where rows were, reorder, then slide them from the old spot to the new one
+      var animate = !reduceMotion && S.botOrder && bots.length <= 160, before = {};
+      if (animate) bots.forEach(function (b) { var r = botRows[b.id]; if (r) before[b.id] = r.li.offsetTop; });
+      var frag = document.createDocumentFragment();
+      bots.forEach(function (b, k) {
+        var r = botRows[b.id]; if (!r) return;
+        if (r.rank !== undefined && r.rank !== k) { r.mv.textContent = k < r.rank ? "▲" : "▼"; r.mv.className = "mv " + (k < r.rank ? "up" : "down"); r.mvAt = performance.now(); }
+        r.rank = k; frag.appendChild(r.li);
+      });
+      list.appendChild(frag);
+      if (animate) bots.forEach(function (b) {
+        var r = botRows[b.id]; if (!r || before[b.id] === undefined) return;
+        var dy = before[b.id] - r.li.offsetTop;
+        if (dy && Math.abs(dy) < 2000 && r.li.animate) r.li.animate([{ transform: "translateY(" + dy + "px)" }, { transform: "none" }], { duration: 240, easing: "cubic-bezier(.2,.7,.2,1)" });
+      });
+      S.botOrder = order;
+    }
+    var vTop = list.scrollTop, vBot = vTop + (list.clientHeight || 600), nowT = performance.now();
     bots.forEach(function (b, k) {
       var r = botRows[b.id]; if (!r) return;
-      list.appendChild(r.li);
+      if (r.mvAt && nowT - r.mvAt > 2400) { r.mv.textContent = ""; r.mvAt = 0; }
       var pnl = b.equity - start, ret = pnl / start;
       sum += pnl; if (pnl > 0) up++;
       r.rk.textContent = k + 1; r.nm.textContent = b.name;
@@ -294,7 +380,8 @@
       r.plA.textContent = signed$(pnl); r.plP.textContent = pct(ret);
       r.pl.className = "pl num " + cls(pnl);
       r.btn.setAttribute("aria-label", b.name + ", P/L " + signed$(pnl) + " (" + pct(ret) + ")");
-      T.sparkline(r.cv, b.intraCurve.concat([b.equity]), start);
+      var y0 = r.li.offsetTop;
+      if (y0 + 40 >= vTop && y0 <= vBot) T.sparkline(r.cv, b.intraCurve.concat([b.equity]), start);   // only rows on screen
     });
     var avg = bots.length ? sum / bots.length : 0;
     var a = $("bsAvg"); a.textContent = signed$(avg); a.className = "num strong " + cls(avg);
@@ -311,6 +398,15 @@
     var meta = el("p", "hint", "Born in generation " + b.gen + (b.parents.length ? " to " + b.parents.join(" and ") : " (random genome)") +
       (b.age ? ". Survived " + b.age + " breeding round" + (b.age > 1 ? "s" : "") : "") + ".");
     body.appendChild(meta);
+    // equity against the index, plus trait chips
+    var eqWrap = el("div", "eq-wrap"), eqCv = el("canvas", "bot-equity");
+    eqCv.setAttribute("role", "img"); eqCv.setAttribute("aria-label", b.name + " equity " + signed$(s.pnl) + " (" + pct(s.ret) + "), with SIM 500 for comparison");
+    eqWrap.appendChild(eqCv);
+    var lg = el("div", "eq-legend"); lg.appendChild(el("span", "sw bot")); lg.appendChild(el("span", null, b.name)); lg.appendChild(el("span", "sw idx")); lg.appendChild(el("span", null, "SIM 500 (rebased)"));
+    eqWrap.appendChild(lg); body.appendChild(eqWrap);
+    var chips = el("div", "chips");
+    T.TRAITS.forEach(function (t) { var cp = el("span", "chip chr" + t.chr, b.traits[t.key]); cp.title = t.name + ": " + t.effect; chips.appendChild(cp); });
+    body.appendChild(chips);
     var k = el("div", "kpis");
     [["P/L", signed$(s.pnl)], ["Return", pct(s.ret)], ["vs SIM 500", pct(s.excessVsIndex)], ["Max drawdown", pct(-s.maxDD)],
       ["Sharpe", s.sharpe.toFixed(2)], ["Sortino", s.sortino.toFixed(2)], ["Alpha (ann.)", pct(s.alpha, 1)], ["Beta", s.beta.toFixed(2)],
@@ -339,6 +435,7 @@
       (gps.length ? "Grandparents: " + gps.join(", ") + ". " : "") +
       (kids.length ? "Children: " + kids.map(function (x) { return x.name; }).join(", ") + ". " : "No children yet. ") +
       "Inbreeding coefficient " + b.inbreeding.toFixed(3) + (b.inbreeding >= 0.25 ? " (as close as full siblings' children)" : b.inbreeding >= 0.0625 ? " (as close as first cousins' children or closer)" : "") + "."));
+    body.appendChild(familyTree(b, pa, pb, kids));
     body.appendChild(el("h3", null, "Traits"));
     var traitTable = table(["Chromosome", "Trait", "Genotype", "Shows as", "Effect"], T.TRAITS.map(function (t) {
       return [t.chr + " " + T.genetics.CHR_NAMES[t.chr], t.name, T.genetics.show(t, b.genotype[t.key]), b.traits[t.key], t.effect];
@@ -363,7 +460,173 @@
     });
     body.appendChild(table(["Time", "Side", "Symbol", "Qty", "Price", "Realized", "Reason"], tr, 5));
     $("dlgBot").showModal();
+    requestAnimationFrame(function () { T.equityChart(eqCv, b.intraCurve.slice(1).concat([b.equity]), b.idxCurve.concat([m.index]), b.startCash); });
   }
+
+  /* Family tree: grandparents, parents, the bot, its children. Each card opens that bot if it is still in the box. */
+  var SVGNS = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs, text) { var e = document.createElementNS(SVGNS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); if (text !== undefined) e.textContent = text; return e; }
+  function familyTree(b, pa, pb, kids) {
+    var all = S.sim.allBots, rows = [], live = {};
+    S.sim.bots.forEach(function (x) { live[x.id] = x; });
+    var gp = [];
+    [pa, pb].forEach(function (p) { if (!p) return; p.parentIds.forEach(function (q) { if (all[q]) gp.push({ bot: all[q], child: p.id }); }); });
+    if (gp.length) rows.push(gp);
+    if (pa) rows.push([{ bot: pa }, { bot: pb }].filter(function (x) { return x.bot; }));
+    rows.push([{ bot: b, self: true }]);
+    if (kids.length) rows.push(kids.slice(0, 8).map(function (x) { return { bot: x }; }));
+    var cw = 138, ch = 40, gapY = 30, widest = Math.max.apply(null, rows.map(function (r) { return r.length; }));
+    var W = Math.max(600, widest * (cw + 14) + 14), H = rows.length * (ch + gapY) - gapY + 8, pos = {};
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, class: "tree", role: "img", "aria-label": "Family tree of " + b.name });
+    rows.forEach(function (row, r) {
+      var n = row.length, gap = Math.min(18, (W - n * cw) / Math.max(1, n + 1)), total = n * cw + (n - 1) * gap, x0 = (W - total) / 2;
+      row.forEach(function (it, k) { pos[it.bot.id + ":" + r] = { x: x0 + k * (cw + gap), y: 4 + r * (ch + gapY), it: it }; });
+    });
+    var g = svgEl("g", { class: "links" });
+    rows.forEach(function (row, r) {
+      if (!r) return;
+      row.forEach(function (it) {
+        var me = pos[it.bot.id + ":" + r];
+        it.bot.parentIds.forEach(function (q) {
+          var par = pos[q + ":" + (r - 1)]; if (!par) return;
+          var x1 = par.x + cw / 2, y1 = par.y + ch, x2 = me.x + cw / 2, y2 = me.y, my = (y1 + y2) / 2;
+          g.appendChild(svgEl("path", { d: "M" + x1 + " " + y1 + " C" + x1 + " " + my + " " + x2 + " " + my + " " + x2 + " " + y2 }));
+        });
+      });
+    });
+    svg.appendChild(g);
+    Object.keys(pos).forEach(function (key) {
+      var p = pos[key], x = p.it.bot, alive = live[x.id], ret = typeof x.lastReturn === "number" ? x.lastReturn : null;
+      var node = svgEl("g", { class: "node" + (p.it.self ? " self" : "") + (alive ? " alive" : ""), transform: "translate(" + p.x + "," + p.y + ")" });
+      node.appendChild(svgEl("rect", { width: cw, height: ch, rx: 6 }));
+      node.appendChild(svgEl("text", { x: 8, y: 16, class: "nm" }, x.name.length > 18 ? x.name.slice(0, 17) + "…" : x.name));
+      node.appendChild(svgEl("text", { x: 8, y: 31, class: "sub" + (ret !== null ? ret >= 0 ? " up" : " down" : "") }, x.house + " · G" + x.gen + (ret !== null ? " · " + pct(ret, 1) : "")));
+      if (alive && !p.it.self) {
+        node.setAttribute("tabindex", "0"); node.setAttribute("role", "button"); node.setAttribute("aria-label", "Open " + x.name);
+        var open = function () { showBot(alive); };
+        node.addEventListener("click", open);
+        node.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
+      }
+      svg.appendChild(node);
+    });
+    var wrap = el("div", "tree-wrap"); wrap.appendChild(svg);
+    return wrap;
+  }
+
+  /* ---------- generation toast ---------- */
+  var toastTimer = 0;
+  function hideToast() { var t = $("genToast"); if (t) { t.classList.remove("show"); t.hidden = true; } clearTimeout(toastTimer); }
+  function genToast(d) {
+    var s = d.summary, box = $("genToast"), start = S.sim.cfg.startCash, rows = (d.rows && d.rows.bots || []).slice().sort(function (a, b) { return b.returnPct - a.returnPct; });
+    clear(box);
+    var head = el("div", "toast-head");
+    head.appendChild(el("b", null, "Generation " + s.gen + " finished"));
+    var x = el("button", "btn icon small", "×"); x.type = "button"; x.setAttribute("aria-label", "Dismiss"); x.addEventListener("click", hideToast);
+    head.appendChild(x); box.appendChild(head);
+    var pod = el("ol", "podium");
+    rows.slice(0, 3).forEach(function (r, k) {
+      var li = el("li", "p" + (k + 1)); li.appendChild(el("span", "place", String(k + 1))); li.appendChild(el("span", "who", r.bot));
+      li.appendChild(el("span", "num " + cls(r.returnPct), pct(r.returnPct))); pod.appendChild(li);
+    });
+    box.appendChild(pod);
+    var st = el("div", "toast-stats");
+    [["Average", pct(s.avgReturn), s.avgReturn], ["SIM 500", pct(s.indexReturn), s.indexReturn], ["In profit", s.profitableBots + " / " + s.bots], ["Next", S.sim.expectedSize(s.gen + 1) + " bots"]].forEach(function (q) {
+      var dv = el("div"); dv.appendChild(el("span", "k", q[0])); dv.appendChild(el("span", "num strong " + (q[2] !== undefined ? cls(q[2]) : ""), q[1])); st.appendChild(dv);
+    });
+    box.appendChild(st);
+    box.appendChild(el("p", "hint", "Breeding: " + S.sim.ruleName + "."));
+    var act = el("div", "toast-actions"), rep = el("button", "btn small", "Open report");
+    rep.type = "button"; rep.addEventListener("click", function () { hideToast(); showReport(S.sim.report()); });
+    act.appendChild(rep); box.appendChild(act);
+    box.hidden = false;
+    requestAnimationFrame(function () { box.classList.add("show"); });
+    clearTimeout(toastTimer);
+    var arm = function () { toastTimer = setTimeout(hideToast, 7000); };
+    box.onmouseenter = function () { clearTimeout(toastTimer); }; box.onmouseleave = arm; arm();
+  }
+
+  /* ---------- command palette (⌘K / Ctrl+K) and shortcuts ---------- */
+  var isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent), MOD = isMac ? "⌘" : "Ctrl+";
+  function commands() {
+    var list = [
+      { name: S.running ? "Pause" : "Start / resume", key: "Space", run: function () { $("btnPlay").click(); } },
+      { name: "New run…", key: "N", run: function () { $("btnNew").click(); } },
+      { name: "Finish the run…", key: "F", run: function () { $("btnFinish").click(); } },
+      { name: "Report and data", key: "D", run: function () { $("btnData").click(); } },
+      { name: "Trading data bot (pull requests)", key: "B", run: function () { $("btnDataBot").click(); } },
+      { name: "Final training mode on / off", key: "M", run: function () { $("modeSwitch").click(); } },
+      { name: "Toggle light / dark theme", key: "T", run: function () { $("btnTheme").click(); } },
+      { name: "Search symbols", key: "/", run: function () { $("search").focus(); } },
+      { name: "Chart: candles", key: "C", run: function () { setChartType("candle"); } },
+      { name: "Chart: line", run: function () { setChartType("line"); } },
+      { name: "Chart: area", run: function () { setChartType("area"); } },
+      { name: "Chart: zoom in", key: "+", run: function () { chart.zoomBy(0.8, null); } },
+      { name: "Chart: zoom out", key: "−", run: function () { chart.zoomBy(1.25, null); } },
+      { name: "Chart: back to live", key: "0", run: function () { chart.reset(); } },
+      { name: "Chart: 5-minute bars", run: function () { document.querySelector('[data-tf="5m"]').click(); } },
+      { name: "Chart: daily bars", run: function () { document.querySelector('[data-tf="1D"]').click(); } },
+      { name: "Show SIM 500 index", key: "I", run: function () { select(-1); } }
+    ];
+    ["sma20", "sma50", "bb", "vwap"].forEach(function (k) { list.push({ name: "Indicator: " + IND_NAMES[k] + (chart.ind[k] ? " (on)" : " (off)"), run: function () { toggleInd(k); } }); });
+    [["1", "1 bar/s"], ["2", "4 bars/s"], ["3", "15 bars/s"], ["4", "60 bars/s"], ["5", "Max"]].forEach(function (q, k) {
+      list.push({ name: "Speed: " + q[1], key: q[0], run: function () { setSpeed(k); } });
+    });
+    list.push({ name: "Keyboard shortcuts", key: "?", run: function () { openPalette(""); } });
+    return list;
+  }
+  var IND_NAMES = { sma20: "SMA 20", sma50: "SMA 50", bb: "Bollinger bands", vwap: "VWAP" };
+  function setSpeed(k) { var sel = $("speed"); sel.selectedIndex = k; sel.dispatchEvent(new Event("change")); setStatus("Speed: " + sel.options[k].text + "."); }
+  function setChartType(t) {
+    chart.type = t; saveChartPrefs(); chart.req();
+    document.querySelectorAll("[data-ctype]").forEach(function (b) { var on = b.dataset.ctype === t; b.classList.toggle("active", on); b.setAttribute("aria-pressed", on ? "true" : "false"); });
+  }
+  function toggleInd(k, force) {
+    chart.ind[k] = force === undefined ? !chart.ind[k] : force; saveChartPrefs(); chart.req();
+    var b = document.querySelector('[data-ind="' + k + '"]'); if (b) b.setAttribute("aria-pressed", chart.ind[k] ? "true" : "false");
+  }
+  function paletteItems(q) {
+    q = q.trim().toLowerCase();
+    var out = [], m = S.sim.market;
+    commands().forEach(function (c) { if (!q || c.name.toLowerCase().indexOf(q) >= 0) out.push({ label: c.name, hint: c.key || "", run: c.run, kind: "Action" }); });
+    if (q) {
+      var Q = q.toUpperCase(), hits = 0;
+      for (var i = 0; i < m.n && hits < 8; i++) if (m.sym[i] === Q || (m.sym[i].indexOf(Q) === 0 && Q.length > 0)) { (function (j) { out.push({ label: m.sym[j] + " · " + m.name[j], hint: T.fmtPrice(m.price[j]) + " " + pct(m.changePct(j)), run: function () { select(j); }, kind: "Symbol" }); })(i); hits++; }
+      for (i = 0; i < m.n && hits < 12; i++) if (m.sym[i].indexOf(Q) !== 0 && m.name[i].toLowerCase().indexOf(q) >= 0) { (function (j) { out.push({ label: m.sym[j] + " · " + m.name[j], hint: T.fmtPrice(m.price[j]), run: function () { select(j); }, kind: "Symbol" }); })(i); hits++; }
+      S.sim.bots.filter(function (b) { return b.name.toLowerCase().indexOf(q) >= 0 || b.house.toLowerCase().indexOf(q) >= 0; }).slice(0, 8).forEach(function (b) {
+        out.push({ label: b.name + " · " + b.house + " · " + b.style, hint: pct(b.equity / b.startCash - 1), run: function () { showBot(b); }, kind: "Bot" });
+      });
+    }
+    return out.slice(0, 40);
+  }
+  var pal = { items: [], at: 0 };
+  function openPalette(initial) {
+    var d = $("dlgPalette"), inp = $("palInput");
+    inp.value = initial || ""; renderPalette();
+    if (!d.open) d.showModal();
+    inp.focus();
+  }
+  function renderPalette() {
+    var list = $("palList"); clear(list);
+    pal.items = paletteItems($("palInput").value); pal.at = Math.min(pal.at, Math.max(0, pal.items.length - 1));
+    pal.items.forEach(function (it, k) {
+      var li = el("li", "pal-item" + (k === pal.at ? " on" : "")); li.setAttribute("role", "option"); li.id = "pal" + k;
+      li.setAttribute("aria-selected", k === pal.at ? "true" : "false");
+      li.appendChild(el("span", "pal-kind", it.kind)); li.appendChild(el("span", "pal-label", it.label));
+      if (it.hint) li.appendChild(el(it.kind === "Action" ? "kbd" : "span", it.kind === "Action" ? null : "num muted", it.hint));
+      li.addEventListener("mousemove", function () { if (pal.at !== k) { pal.at = k; markPal(); } });
+      li.addEventListener("click", function () { runPal(k); });
+      list.appendChild(li);
+    });
+    if (!pal.items.length) list.appendChild(el("li", "pal-empty", "Nothing matches. Try a symbol (AAPL), a bot name or an action (zoom, speed, report)."));
+    $("palInput").setAttribute("aria-activedescendant", pal.items.length ? "pal" + pal.at : "");
+  }
+  function markPal() {
+    Array.prototype.forEach.call($("palList").children, function (li, k) { li.classList.toggle("on", k === pal.at); li.setAttribute("aria-selected", k === pal.at ? "true" : "false"); });
+    var on = $("pal" + pal.at); if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest" });
+    $("palInput").setAttribute("aria-activedescendant", "pal" + pal.at);
+  }
+  function runPal(k) { var it = pal.items[k]; if (!it) return; $("dlgPalette").close(); setTimeout(it.run, 0); }
+
   function barLabel(b) { var mins = 570 + b * 5, h = Math.floor(mins / 60), mm = mins % 60; return (h > 12 ? h - 12 : h) + ":" + (mm < 10 ? "0" : "") + mm; }
 
   function table(heads, rows, colorCol) {
@@ -627,8 +890,32 @@
     $("speed").addEventListener("change", function () { S.speed = +this.value; S.acc = 0; });
     $("btnTheme").addEventListener("click", function () {
       var t = document.documentElement.dataset.theme === "light" ? "dark" : "light";
-      document.documentElement.dataset.theme = t; store("tb-theme", t); renderAll(true);
+      store("tb-theme", t); applyTheme(); setStatus("Theme: " + t + ". It stays " + t + " until you switch back; double-click the button to follow your system again.");
     });
+    $("btnTheme").addEventListener("dblclick", function () { store("tb-theme", "auto"); applyTheme(); setStatus("Theme follows your system's light or dark setting."); });
+    if (window.matchMedia) {
+      var mq = window.matchMedia("(prefers-color-scheme: light)");
+      var onSys = function () { applyTheme(); };
+      if (mq.addEventListener) mq.addEventListener("change", onSys); else if (mq.addListener) mq.addListener(onSys);
+    }
+    // chart toolbar
+    document.querySelectorAll("[data-ctype]").forEach(function (b) { b.addEventListener("click", function () { setChartType(b.dataset.ctype); }); });
+    document.querySelectorAll("[data-ind]").forEach(function (b) { b.addEventListener("click", function () { toggleInd(b.dataset.ind); }); });
+    setChartType(chart.type); Object.keys(chart.ind).forEach(function (k) { toggleInd(k, chart.ind[k]); });
+    $("btnZoomIn").addEventListener("click", function () { chart.zoomBy(0.8, null); });
+    $("btnZoomOut").addEventListener("click", function () { chart.zoomBy(1.25, null); });
+    $("btnLive").addEventListener("click", function () { chart.reset(); });
+    $("botList").addEventListener("scroll", function () { clearTimeout(S.botScroll); S.botScroll = setTimeout(renderBots, 60); }, { passive: true });
+    // command palette
+    $("palInput").addEventListener("input", function () { pal.at = 0; renderPalette(); });
+    $("palInput").addEventListener("keydown", function (e) {
+      if (e.key === "ArrowDown") { e.preventDefault(); pal.at = Math.min(pal.items.length - 1, pal.at + 1); markPal(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); pal.at = Math.max(0, pal.at - 1); markPal(); }
+      else if (e.key === "Enter") { e.preventDefault(); runPal(pal.at); }
+    });
+    $("btnPalette").addEventListener("click", function () { openPalette(""); });
+    $("btnPalette").setAttribute("title", "Commands and search (" + MOD + "K)");
+    $("palKbd").textContent = MOD + "K";
     $("search").addEventListener("input", function () { S.query = this.value; refilter(); $("mList").scrollTop = 0; renderList(); });
     $("sectorSel").addEventListener("change", function () { S.sector = +this.value; refilter(); $("mList").scrollTop = 0; renderList(); });
     $("mList").addEventListener("scroll", renderList, { passive: true });
@@ -656,6 +943,7 @@
       $("inBudget").value = String(S.cfg.detailBudget || 8000000); $("inDays").value = S.cfg.daysPerGen; $("inCash").value = S.cfg.startCash || 100000; $("inSeed").value = S.cfg.seed; $("inFit").value = S.cfg.fitness;
       $("inMut").value = String(S.cfg.mutation || 1); loadBreeding(S.cfg);
       $("inSamples").value = String(S.cfg.samplesPerDay !== undefined ? S.cfg.samplesPerDay : 150);
+      $("inSymbols").value = String(S.cfg.maxSymbols || 0); $("inBackground").checked = S.background;
       $("newErr").hidden = true;
       $("dlgNew").showModal();
     });
@@ -672,8 +960,9 @@
       var br = readBreeding();
       if (!bad && br.error) bad = br.error;
       if (bad) { e.preventDefault(); err.textContent = bad; err.hidden = false; return; }
+      S.background = $("inBackground").checked; store("tb-background", S.background ? "on" : "off");
       build({ mult: mult, generations: Math.round(g), forever: forever, daysPerGen: Math.round(d), seed: Math.round(s), fitness: $("inFit").value,
-        detailBudget: +$("inBudget").value, startCash: Math.round(cash * 100) / 100, mutation: +$("inMut").value, samplesPerDay: +$("inSamples").value, breeding: br.breeding, breedPool: br.breedPool,
+        maxSymbols: +$("inSymbols").value, detailBudget: +$("inBudget").value, startCash: Math.round(cash * 100) / 100, mutation: +$("inMut").value, samplesPerDay: +$("inSamples").value, breeding: br.breeding, breedPool: br.breedPool,
         breedPairing: br.breedPairing, brackets: br.brackets, levels: br.levels, threshold: br.threshold, threshold2: br.threshold2, pct: br.pct, allowed: br.allowed });
     });
     $("btnCloseBot").addEventListener("click", function () { $("dlgBot").close(); });
@@ -730,13 +1019,46 @@
     });
     window.addEventListener("resize", function () { renderAll(true); });
     document.addEventListener("keydown", function (e) {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || document.querySelector("dialog[open]")) return;
-      if (e.key === " ") { e.preventDefault(); $("btnPlay").click(); }
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "k" || e.key === "K")) { e.preventDefault(); if ($("dlgPalette").open) $("dlgPalette").close(); else openPalette(""); return; }
+      if ((e.metaKey || e.ctrlKey) && (e.key === "Enter")) { e.preventDefault(); $("btnPlay").click(); return; }
+      var tag = e.target.tagName;
+      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || e.target.isContentEditable || document.querySelector("dialog[open]") || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (document.body.classList.contains("final-mode")) return;
+      var k = e.key, hit = true;
+      if (k === " ") $("btnPlay").click();
+      else if (k === "n" || k === "N") $("btnNew").click();
+      else if (k === "f" || k === "F") $("btnFinish").click();
+      else if (k === "d" || k === "D") $("btnData").click();
+      else if (k === "b" || k === "B") $("btnDataBot").click();
+      else if (k === "m" || k === "M") $("modeSwitch").click();
+      else if (k === "t" || k === "T") $("btnTheme").click();
+      else if (k === "c" || k === "C") setChartType(chart.type === "candle" ? "line" : chart.type === "line" ? "area" : "candle");
+      else if (k === "i" || k === "I") select(-1);
+      else if (k === "/") $("search").focus();
+      else if (k === "?") openPalette("");
+      else if (k === "+" || k === "=") chart.zoomBy(0.8, null);
+      else if (k === "-" || k === "_") chart.zoomBy(1.25, null);
+      else if (k === "0") chart.reset();
+      else if (k === "ArrowLeft") chart.panBy(e.shiftKey ? 40 : 8);
+      else if (k === "ArrowRight") chart.panBy(e.shiftKey ? -40 : -8);
+      else if (k === "ArrowDown" || k === "ArrowUp") {
+        var at = S.filtered.indexOf(S.sel), nx = Math.max(0, Math.min(S.filtered.length - 1, at + (k === "ArrowDown" ? 1 : -1)));
+        if (S.filtered.length) { select(S.filtered[nx]); var box = $("mList"); if (nx * ROW < box.scrollTop || nx * ROW > box.scrollTop + box.clientHeight - ROW) box.scrollTop = nx * ROW - box.clientHeight / 2; }
+      }
+      else if (k >= "1" && k <= "5") setSpeed(+k - 1);
+      else hit = false;
+      if (hit) e.preventDefault();
     });
   }
 
-  var theme = store("tb-theme");
-  if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+  function applyTheme() {
+    var pick = store("tb-theme"), sysLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+    var t = pick === "light" || pick === "dark" ? pick : sysLight ? "light" : "dark";
+    document.documentElement.dataset.theme = t;
+    var meta = document.querySelector('meta[name="theme-color"]:not([media])'); if (meta) meta.setAttribute("content", t === "light" ? "#ffffff" : "#161b21");
+    if (S.sim) renderAll(true);
+  }
+  applyTheme();
   wire();
   showPanel("pChart");
   build(S.cfg);
